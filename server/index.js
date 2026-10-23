@@ -38,7 +38,7 @@ app.use((e, req, res, next) => {
   res.status(500).json({ erro: 'Erro interno. Tente novamente.' });
 });
 
-const PORT = Number(process.env.PORT || 3000);
+const PORT = Number(process.env.PORT || 3002);
 (async () => {
   if (!segredoValido(process.env.JWT_SECRET)) {
     console.error('FALHA: defina JWT_SECRET no arquivo .env com um texto longo e aleatório (mínimo 24 caracteres e diferente do exemplo do .env.example). Veja a seção "Variáveis de ambiente" do README.');

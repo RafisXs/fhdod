@@ -149,7 +149,7 @@ O arquivo `.env` guarda as credenciais e **não vai para o GitHub** (está no `.
 | `DB_NAME` | Nome do banco | `hospital_experiencia` |
 | `DB_USER` | Usuário do MySQL | `root` |
 | `DB_PASSWORD` | Senha do MySQL | `sua_senha` |
-| `PORT` | Porta do site | `3000` |
+| `PORT` | Porta do site | `3002` |
 | `NODE_ENV` | `development` ou `production` | `development` |
 | `JWT_SECRET` | Texto longo e aleatório que assina o login (mínimo 24 caracteres) | veja abaixo |
 | `COOKIE_SECURE` | `true` somente quando o site estiver em HTTPS | `false` |
@@ -172,13 +172,13 @@ No terminal deve aparecer:
 
 ```
 Banco de dados conectado com sucesso. (banco: hospital_experiencia, MySQL 8.x)
-Servidor rodando em http://localhost:3000 ...
+Servidor rodando em http://localhost:3002 ...
 ```
 
-- Pesquisa: http://localhost:3000
-- Área restrita: http://localhost:3000/admin
-- TV Wall: http://localhost:3000/tv.html
-- Teste de conexão com o banco: http://localhost:3000/api/saude
+- Pesquisa: http://localhost:3002
+- Área restrita: http://localhost:3002/admin
+- TV Wall: http://localhost:3002/tv.html
+- Teste de conexão com o banco: http://localhost:3002/api/saude
 
 **QR Code por setor** (um QR por setor, apontando para `/?setor=<código>`):
 
@@ -255,10 +255,10 @@ Com o servidor ligado e um gerente já criado:
 
 ```
 PowerShell:
-$env:TEST_GERENTE_EMAIL="gerente@exemplo.com"; $env:TEST_GERENTE_SENHA="sua-senha"; $env:BASE_URL="http://localhost:3000"; npm test
+$env:TEST_GERENTE_EMAIL="gerente@exemplo.com"; $env:TEST_GERENTE_SENHA="sua-senha"; $env:BASE_URL="http://localhost:3002"; npm test
 
 Linux e macOS:
-BASE_URL=http://localhost:3000 TEST_GERENTE_EMAIL=gerente@exemplo.com TEST_GERENTE_SENHA=sua-senha npm test
+BASE_URL=http://localhost:3002 TEST_GERENTE_EMAIL=gerente@exemplo.com TEST_GERENTE_SENHA=sua-senha npm test
 ```
 
 Os 16 testes cobrem: conexão, perguntas, proteção CSRF, login, registro de avaliação, regras do telefone, validações, os três perfis (inclusive 1 administrador por setor), edição de perguntas, contatos, Excel, TV Wall e regras de segurança da equipe.
