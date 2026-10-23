@@ -1,233 +1,295 @@
-# Avaliação do Atendimento - FHDOD
+# Avaliação do Atendimento - FHDOD (protótipo acadêmico)
 
-Sistema web de avaliação de atendimento para a **Fundação Hospitalar Dr. Oswaldo Diesel (FHDOD)**, em Três Coroas - RS. Pacientes e familiares avaliam o atendimento por setor, em menos de 1 minuto e de forma anônima. A equipe do hospital acompanha os resultados em um painel com login.
+Sistema web para coletar a avaliação do atendimento por setor (pesquisa de satisfação com NPS) e acompanhar os resultados em um painel com perfis de acesso, TV Wall e exportação em Excel.
 
-> Projeto desenvolvido na disciplina de Criação de Sites (Curso Técnico em Informática - Projeto Integrador), a partir da pesquisa de satisfação e NPS impressa do hospital (FM-NEG-0.083, versão 02).
+> **Projeto acadêmico / protótipo de solução** para a Fundação Hospitalar Dr. Oswaldo Diesel (FHDOD), Três Coroas - RS. **Não é o sistema oficial da instituição.** Os dados exibidos pelo sistema podem ser demonstrativos.
 
 - **Autores:** `[Nome 1]` e `[Nome 2]`
 - **Documentação online da API:** `[colar o link aqui]`
 - **Quadro Kanban:** `[colar o link aqui]`
-- **Site publicado:** `[colar o link aqui]`
-
----
 
 ## Sumário
 
 1. [Funcionalidades](#funcionalidades)
-2. [Tecnologias](#tecnologias)
-3. [Estrutura do repositório](#estrutura-do-repositório)
-4. [Pré-requisitos](#pré-requisitos)
+2. [Perfis de acesso](#perfis-de-acesso)
+3. [Tecnologias](#tecnologias)
+4. [Estrutura do repositório](#estrutura-do-repositório)
 5. [Instalação](#instalação)
 6. [Variáveis de ambiente](#variáveis-de-ambiente)
 7. [Execução](#execução)
-8. [Banco de dados e segurança](#banco-de-dados-e-segurança)
-9. [Documentação da API](#documentação-da-api)
-10. [Testes](#testes)
-11. [Publicação (deploy)](#publicação-deploy)
-12. [LGPD e privacidade](#lgpd-e-privacidade)
-13. [Contribuição e versionamento](#contribuição-e-versionamento)
-14. [Limitações conhecidas](#limitações-conhecidas)
-15. [Contato](#contato)
-
----
+8. [Banco de dados](#banco-de-dados)
+9. [API](#api)
+10. [Segurança e LGPD](#segurança-e-lgpd)
+11. [Testes](#testes)
+12. [Solução de problemas](#solução-de-problemas)
+13. [Limitações conhecidas](#limitações-conhecidas)
+14. [Fontes institucionais](#fontes-institucionais)
 
 ## Funcionalidades
 
-**Para pacientes e familiares (sem login)**
+**Pesquisa (pacientes e familiares, sem login) - `/`**
 
-- Escolha do setor: Recepção, Pronto Atendimento, Raio-X, Endoscopia e Colonoscopia, Centro Cirúrgico, Internação Clínica, Internação Pediátrica, Internação Saúde Mental, Obstetrícia e Traumato.
-- Até 5 perguntas por setor: duas sobre o atendimento, uma sobre o que foi bom, uma sobre o que pode melhorar e, por último, a recomendação de 1 a 10 com carinhas.
-- Passo final com dia do atendimento, turno (Dia ou Noite), paciente ou familiar e tipo de atendimento (SUS, Plano de Saúde ou Particular).
-- Link direto por setor (para QR Code): `index.html?setor=rx`.
-- Layout responsivo, pensado para celular, com navegação por teclado e foco visível.
+- Escolha do setor e até 5 perguntas por setor: duas de nota (5 níveis), uma de pontos positivos, uma de pontos a melhorar e, por último, a recomendação de 1 a 10 com carinhas.
+- Passo final: dia do atendimento, turno (Dia ou Noite), paciente ou familiar e tipo de atendimento (SUS, Plano de Saúde ou Particular).
+- Quando a nota fica abaixo da média, aparece um campo **opcional** de telefone, com autorização expressa de contato, para a gestão do setor ligar e entender o que houve.
+- Link direto por setor, para gerar QR Code: `/?setor=rx`.
+- Layout para celular, navegação por teclado e foco visível.
 
-**Para a equipe (com login)**
+**Área restrita (equipe) - `/admin`**
 
-- Login com e-mail e senha (Supabase Auth). Não há cadastro pelo site: as contas são criadas pelo administrador.
-- Painel com filtros (período, setor, turno e tipo de atendimento), cartões de resumo com comparação com o período anterior, gráficos, ranking por setor, exportação em CSV e impressão.
-- Logout automático após 15 minutos sem uso.
+- Resultados: indicadores, gráficos, ranking por setor, filtros (período, setor, turno, tipo de atendimento), comparação com o período anterior, impressão e exportação em Excel.
+- Contatos: pessoas que deixaram o telefone, com situação (pendente, contatado, resolvido) e observações.
+- Perguntas: edição do texto, do tipo e das opções de cada pergunta, e ativação ou desativação. A última pergunta (recomendação de 1 a 10) é sempre mantida.
+- Equipe: criação e desativação de contas, conforme o perfil.
+
+**TV Wall - `/tv.html`**
+
+- Painel para televisão com indicadores agregados, atualizado a cada 30 segundos. Nunca mostra telefone, nome ou resposta individual.
+
+## Perfis de acesso
+
+| Recurso | Gerente | Administrador de setor | Visualizador |
+| --- | --- | --- | --- |
+| Alcance dos dados | Todos os setores | Somente o seu setor | O seu setor (ou todos, se criado sem setor) |
+| Ver resultados e exportar Excel | Sim | Sim | Sim |
+| Ver telefones e registrar contato | Sim | Sim (do seu setor) | **Nunca** |
+| Editar perguntas | Todos os setores | Somente o seu setor | Não |
+| Equipe | Cria e gerencia todas as contas, **sendo o único que cria administradores** (1 por setor) e outros gerentes | Cria e gerencia apenas visualizadores do seu setor; não cria admins nem muda perfis | Não |
+| Atalho da TV Wall no painel | Sim | Não | Não |
+
+Regras:
+
+- Cada setor pode ter **no máximo 1 administrador ativo** (garantido pelo banco de dados). Para trocar, desative o atual e crie ou ative outro.
+- Precisa existir pelo menos um gerente ativo, e ninguém desativa ou rebaixa a própria conta.
+- O primeiro gerente é criado pelo terminal (`npm run criar-gerente`). Não existe cadastro público.
 
 ## Tecnologias
 
 | Camada | Tecnologia |
 | --- | --- |
-| Frontend | HTML, CSS e JavaScript puros (arquivo único, sem build) |
-| Backend e API | Supabase (PostgREST gerado automaticamente a partir das tabelas) |
-| Autenticação | Supabase Auth (e-mail e senha) |
-| Banco de dados | PostgreSQL (Supabase) com Row Level Security |
-| Biblioteca | `@supabase/supabase-js` v2, carregada por CDN (jsDelivr) |
+| Backend | Node.js 18+ e Express 5 |
+| Banco de dados | MySQL 8.0+ (driver `mysql2`) |
+| Autenticação | JWT em cookie `httpOnly`, senhas com `bcryptjs` |
+| Segurança | `helmet` (CSP), `express-rate-limit`, consultas parametrizadas |
+| Excel | `exceljs` |
+| Frontend | HTML, CSS e JavaScript puros (sem build), servidos pelo próprio backend |
+| Configuração | `dotenv` (arquivo `.env`) |
 
 ## Estrutura do repositório
 
-Organização sugerida (renomeie o arquivo `avaliacao-fhdod-supabase.html` para `index.html`):
-
 ```
 .
-├── index.html                 # Site completo (pacientes e painel da equipe)
-├── supabase/
-│   └── schema.sql             # Tabelas, índices, função e políticas de segurança
-├── docs/
-│   ├── requisitos.md          # Especificação de requisitos
-│   ├── arquitetura-backend.md # Arquitetura, segurança e escalabilidade
-│   ├── padroes-git.md         # Branches, commits e Pull Requests
-│   └── plano-e-relatorio-de-testes.md
-└── README.md
+├── database/
+│   └── schema.sql             # Tabelas, restrições e dados iniciais (MySQL)
+├── public/                    # Frontend
+│   ├── index.html             # Pesquisa
+│   ├── admin.html             # Área restrita
+│   ├── tv.html                # TV Wall
+│   ├── css/  img/  js/
+├── server/
+│   ├── index.js               # Servidor Express
+│   ├── db.js                  # Conexão com o MySQL (pool) e teste de conexão
+│   ├── lib/                   # Autenticação, validação de avaliações, utilidades
+│   ├── routes/                # public.js (pesquisa, login, TV) e admin.js (área restrita)
+│   └── scripts/criar-gerente.js
+├── tests/api.test.js          # Testes automatizados da API
+├── .env.example               # Modelo das variáveis de ambiente
+└── package.json
 ```
-
-## Pré-requisitos
-
-- Navegador atualizado (Chrome, Edge ou Firefox).
-- Conta gratuita no [Supabase](https://supabase.com) com permissão para criar projetos (em organização própria ou como Administrator).
-- Visual Studio Code com a extensão **Live Server** (opcional, para rodar localmente).
-- Git.
 
 ## Instalação
 
-1. Clone o repositório:
+Pré-requisitos: **Node.js 18 ou superior** (com npm) e **MySQL Server 8.0 ou superior**. O MySQL Workbench é opcional, mas facilita rodar o SQL e consultar as tabelas.
 
-   ```bash
-   git clone <URL-DO-REPOSITORIO>
-   cd <PASTA-DO-PROJETO>
+1. Confira o que já está instalado (PowerShell ou terminal):
+
+   ```
+   node -v
+   npm -v
+   mysql --version
    ```
 
-2. Crie um projeto no Supabase (**New project**) e guarde a senha do banco.
-3. No Supabase, abra **SQL Editor > New query**, cole o conteúdo de `supabase/schema.sql` e clique em **Run**. O script pode ser executado mais de uma vez.
-4. Autorize os funcionários que poderão ver o painel, rodando no SQL Editor (troque pelos e-mails reais):
+   No Windows, o comando `mysql` pode não estar no PATH mesmo com o MySQL instalado. Nesse caso use o MySQL Workbench no passo 4.
 
-   ```sql
-   insert into public.equipe_autorizada (email) values
-     ('funcionario1@exemplo.com.br'),
-     ('funcionario2@exemplo.com.br')
-   on conflict do nothing;
+2. Instale as dependências do projeto, dentro da pasta do projeto:
+
+   ```
+   npm install
    ```
 
-5. Em **Authentication > Users > Add user > Create new user**, crie a conta de cada funcionário (e-mail e senha) e marque **Auto Confirm User**. O e-mail precisa ser o mesmo da lista do passo anterior.
-6. Em **Authentication > Sign In / Providers**, desative **Allow new users to sign up**, para que ninguém crie conta pela API.
-7. Configure as chaves no `index.html` (próxima seção).
+3. Crie o arquivo `.env` a partir do modelo e preencha com os seus valores (veja a próxima seção):
+
+   ```
+   copy .env.example .env        (Windows)
+   cp .env.example .env          (Linux e macOS)
+   ```
+
+4. Crie o banco e as tabelas. No **MySQL Workbench**: abra a conexão, menu *File > Open SQL Script*, escolha `database/schema.sql` e clique no raio (Execute). Ou pelo terminal:
+
+   ```
+   mysql -u root -p < database/schema.sql
+   ```
+
+   O script pode ser executado mais de uma vez sem apagar dados.
+
+5. Crie o primeiro gerente (pede nome, e-mail e senha de 8 a 72 caracteres):
+
+   ```
+   npm run criar-gerente
+   ```
 
 ## Variáveis de ambiente
 
-O projeto é um site estático, sem servidor próprio, então não usa arquivo `.env`. As duas configurações ficam no início do `<script>` do `index.html`:
+O arquivo `.env` guarda as credenciais e **não vai para o GitHub** (está no `.gitignore`). Nunca coloque senhas no código-fonte.
 
-| Variável | Onde obter | Exemplo |
+| Variável | Para que serve | Exemplo |
 | --- | --- | --- |
-| `SUPABASE_URL` | Supabase > Project Settings > API > Project URL | `https://abcdefgh.supabase.co` |
-| `SUPABASE_KEY` | Supabase > Project Settings > API > chave `anon` ou `publishable` | `sb_publishable_...` |
+| `DB_HOST` | Endereço do MySQL | `localhost` |
+| `DB_PORT` | Porta do MySQL | `3306` |
+| `DB_NAME` | Nome do banco | `hospital_experiencia` |
+| `DB_USER` | Usuário do MySQL | `root` |
+| `DB_PASSWORD` | Senha do MySQL | `sua_senha` |
+| `PORT` | Porta do site | `3000` |
+| `NODE_ENV` | `development` ou `production` | `development` |
+| `JWT_SECRET` | Texto longo e aleatório que assina o login (mínimo 24 caracteres) | veja abaixo |
+| `COOKIE_SECURE` | `true` somente quando o site estiver em HTTPS | `false` |
+| `TV_TOKEN` | Opcional. Se preenchido, a TV Wall só abre com `/tv.html?token=VALOR` | vazio |
+| `TRUST_PROXY` | Opcional. Número de proxies à frente do servidor (para o limite de tentativas ver o IP real) | `1` |
 
-```js
-var SUPABASE_URL="https://abcdefgh.supabase.co";
-var SUPABASE_KEY="sb_publishable_xxxxxxxxxxxx";
+Para gerar o `JWT_SECRET`:
+
 ```
-
-> **Atenção:** a chave `anon`/`publishable` é pública por projeto e pode ficar no frontend, porque a proteção dos dados é feita pelas políticas RLS do banco. **Nunca** coloque no repositório ou no site a chave `service_role` ou `secret`, nem a senha do banco.
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
 
 ## Execução
 
-**Localmente**
+```
+npm start
+```
 
-1. Abra a pasta no VS Code.
-2. Clique com o botão direito no `index.html` e escolha **Open with Live Server** (ou abra o arquivo no navegador).
-3. Acesse a Área da equipe pelo link no rodapé da página.
+No terminal deve aparecer:
 
-**Link direto por setor (QR Code):** `index.html?setor=<codigo>`
+```
+Banco de dados conectado com sucesso. (banco: hospital_experiencia, MySQL 8.x)
+Servidor rodando em http://localhost:3000 ...
+```
+
+- Pesquisa: http://localhost:3000
+- Área restrita: http://localhost:3000/admin
+- TV Wall: http://localhost:3000/tv.html
+- Teste de conexão com o banco: http://localhost:3000/api/saude
+
+**QR Code por setor** (um QR por setor, apontando para `/?setor=<código>`):
 
 | Código | Setor | Código | Setor |
 | --- | --- | --- | --- |
 | `rec` | Recepção | `ic` | Internação Clínica |
 | `pa` | Pronto Atendimento | `ip` | Internação Pediátrica |
 | `rx` | Raio-X | `sm` | Internação Saúde Mental |
-| `endo` | Endoscopia e Colonoscopia | `ob` | Obstetrícia |
-| `cc` | Centro Cirúrgico | `tr` | Traumato |
+| `endo` | Endoscopia e Colonoscopia | `ob` | Atendimento com Obstetrícia |
+| `cc` | Centro Cirúrgico | `tr` | Atendimento com Traumato |
 
-## Banco de dados e segurança
+O QR Code da pesquisa de satisfação não deve ser confundido com o QR Code de notificação de eventos adversos que o hospital já usa nos setores. Se os dois forem usados, identifique cada um claramente.
 
-Tabelas (definidas em `supabase/schema.sql`):
+## Banco de dados
 
-- **`avaliacoes`**: uma linha por avaliação enviada, sem nome nem dados de saúde.
-- **`equipe_autorizada`**: e-mails de funcionários que podem ler as avaliações. Não tem política RLS de propósito: ninguém acessa a lista pelo site.
+Banco `hospital_experiencia`, definido em `database/schema.sql`.
 
-Regras de acesso (RLS):
-
-| Ação | Quem pode |
+| Tabela | Finalidade |
 | --- | --- |
-| Enviar avaliação (`insert`) | Qualquer pessoa (`anon`) |
-| Ler avaliações (`select`) | Somente usuários logados **e** presentes em `equipe_autorizada` |
-| Alterar ou apagar avaliações | Ninguém pelo site |
+| `setores` | Pontos de entrada da pesquisa. A coluna `origem` diz se o setor vem do site oficial, da pesquisa impressa ou foi definido para o protótipo. |
+| `usuarios` | Contas da equipe: perfil (`gerente`, `admin`, `visualizador`) e setor. Uma chave única garante 1 administrador ativo por setor. |
+| `perguntas` | 5 posições por setor, editáveis. A posição 5 é sempre a recomendação de 1 a 10. |
+| `avaliacoes` | Uma linha por avaliação, anônima. Guarda turno, perfil de quem respondeu, tipo de atendimento, telefone (opcional) e situação do contato. |
+| `respostas` | Uma linha por pergunta respondida, com o texto da pergunta da época. |
 
-Campos de `avaliacoes`:
+Relacionamentos: `perguntas.setor_id`, `avaliacoes.setor_id` e `usuarios.setor_id` apontam para `setores`; `respostas.avaliacao_id` aponta para `avaliacoes`; `respostas.pergunta_id` aponta para `perguntas`.
 
-| Campo | Tipo | Regra |
+Para recomeçar do zero, no início do `schema.sql` há um bloco `DROP TABLE` comentado (apaga tudo).
+
+## API
+
+Todas as respostas são JSON, exceto a exportação em Excel. Pedidos que alteram dados exigem o cabeçalho `X-Requested-With: fhdod` (proteção contra CSRF).
+
+**Públicas**
+
+| Método | Rota | Uso |
 | --- | --- | --- |
-| `id` | uuid | Gerado automaticamente |
-| `criado_em` | timestamptz | Padrão: agora |
-| `setor` | text | Um dos 10 códigos de setor |
-| `nota1`, `nota2` | smallint | 1 a 5 |
-| `positivos`, `negativos` | text[] | Até 8 itens cada |
-| `nps` | smallint | 1 a 10 |
-| `data_atendimento` | date | Não pode ser futura |
-| `turno` | text | `Dia` ou `Noite` |
-| `respondente` | text | `Paciente` ou `Familiar` |
-| `tipo_atendimento` | text | `SUS`, `Plano de Saúde` ou `Particular` |
+| GET | `/api/saude` | Teste de conexão com o banco |
+| GET | `/api/perguntas` | Setores e perguntas ativas |
+| POST | `/api/avaliacoes` | Enviar uma avaliação |
+| POST | `/api/login` | Entrar (limite de 10 tentativas a cada 15 minutos) |
+| POST | `/api/logout` | Sair |
+| GET | `/api/me` | Dados de quem está logado |
+| GET | `/api/tv` | Indicadores agregados da TV Wall |
 
-## Documentação da API
+**Área restrita (exige login; o alcance depende do perfil)**
 
-A API REST é gerada automaticamente pelo Supabase (PostgREST) a partir das tabelas. Endpoints usados pelo site:
+| Método | Rota | Perfis |
+| --- | --- | --- |
+| GET | `/api/admin/avaliacoes` | Todos |
+| GET | `/api/admin/export.xlsx` | Todos |
+| PATCH | `/api/admin/avaliacoes/:id/contato` | Gerente, administrador |
+| GET, PUT | `/api/admin/perguntas/:setor` | Gerente, administrador |
+| GET, POST | `/api/admin/usuarios` | Gerente, administrador |
+| PATCH | `/api/admin/usuarios/:id` | Gerente, administrador |
 
-| Método | Rota | Uso | Acesso |
-| --- | --- | --- | --- |
-| `POST` | `/rest/v1/avaliacoes` | Enviar avaliação | Público (`anon`) |
-| `GET` | `/rest/v1/avaliacoes?select=...` | Listar avaliações para o painel | Equipe autorizada |
-| `POST` | `/auth/v1/token?grant_type=password` | Login | Público |
-| `POST` | `/auth/v1/logout` | Logout | Usuário logado |
+## Segurança e LGPD
 
-Todas as requisições levam o cabeçalho `apikey` com a chave pública do projeto. A documentação interativa (OpenAPI/Swagger) do projeto fica em: `[colar o link aqui]`. O Supabase gera a especificação OpenAPI da API em **Project Settings > API**.
+- Senhas com hash `bcrypt`; nunca guardadas em texto.
+- Login por cookie `httpOnly` e `SameSite=Strict`, válido por 8 horas. O perfil é conferido no banco a cada requisição, então desativar uma conta vale na hora.
+- Consultas SQL parametrizadas, validação de todos os dados recebidos e política de segurança de conteúdo (`helmet`).
+- Limite de tentativas de login e de envios de avaliação por endereço.
+- Exportação em Excel protegida contra injeção de fórmulas.
+- A avaliação é **anônima**. O telefone é opcional, só é aceito quando a nota está abaixo da média e há autorização expressa, e fica visível apenas para o gerente e o administrador do setor. Nunca aparece para o visualizador, na TV Wall nem no Excel. O telefone pode ser apagado depois do contato.
+- Não há campo de texto livre do paciente, para evitar dados de saúde no sistema.
+
+Para uso oficial, a finalidade, o prazo de guarda do telefone e a base legal devem ser definidos junto ao responsável pela LGPD do hospital.
 
 ## Testes
 
-Ainda não há testes automatizados. A validação é feita por roteiro manual, e o plano completo fica em `docs/plano-e-relatorio-de-testes.md`.
+Testes automatizados da API (Node 18+, sem bibliotecas extras). **Use um banco de teste:** os testes criam avaliações e contas.
 
-| # | Teste | Resultado esperado |
-| --- | --- | --- |
-| 1 | Responder as 5 perguntas e o passo final | Mensagem de agradecimento e linha nova em `avaliacoes` |
-| 2 | Tentar enviar sem preencher dia, turno, perfil ou tipo | Botão **Enviar avaliação** continua desabilitado |
-| 3 | Abrir `?setor=rx` | Abre direto nas perguntas do Raio-X |
-| 4 | Login com e-mail e senha corretos de conta autorizada | Painel com dados |
-| 5 | Login com senha errada | Mensagem de erro, sem entrar |
-| 6 | Login com conta que **não** está em `equipe_autorizada` | Painel vazio com aviso |
-| 7 | Ler `avaliacoes` sem login (chamada direta à API) | Lista vazia (bloqueado pelo RLS) |
-| 8 | Filtros do painel | Números e gráficos mudam conforme o filtro |
-| 9 | Exportar CSV | Arquivo baixado com as linhas do filtro atual |
-| 10 | Ficar 15 minutos sem usar o painel | Logout automático |
-
-## Publicação (deploy)
-
-Como é um site estático, pode ser hospedado em Netlify, Vercel, GitHub Pages ou no servidor do hospital: basta publicar o `index.html`. Depois de publicar, em **Authentication > URL Configuration** do Supabase, informe o endereço do site.
-
-## LGPD e privacidade
-
-- A avaliação é **anônima**: o sistema não pede nome, CPF, prontuário nem informações de saúde.
-- O banco só aceita os valores previstos (setores, notas, turno etc.), sem campo de texto livre.
-- Só funcionários autorizados leem os resultados.
-- Para uso oficial no hospital, o projeto do Supabase deve pertencer a uma conta institucional, e a finalidade e o prazo de guarda dos dados devem ser definidos com o responsável pela LGPD do hospital.
-
-## Contribuição e versionamento
-
-Os padrões de branches, commits (Conventional Commits) e Pull Requests ficam em `docs/padroes-git.md`. Exemplo de mensagem de commit:
+Com o servidor ligado e um gerente já criado:
 
 ```
-feat(painel): adiciona comparação com o período anterior
+PowerShell:
+$env:TEST_GERENTE_EMAIL="gerente@exemplo.com"; $env:TEST_GERENTE_SENHA="sua-senha"; $env:BASE_URL="http://localhost:3000"; npm test
+
+Linux e macOS:
+BASE_URL=http://localhost:3000 TEST_GERENTE_EMAIL=gerente@exemplo.com TEST_GERENTE_SENHA=sua-senha npm test
 ```
 
-O acompanhamento das tarefas está no quadro Kanban: `[colar o link aqui]`.
+Os 16 testes cobrem: conexão, perguntas, proteção CSRF, login, registro de avaliação, regras do telefone, validações, os três perfis (inclusive 1 administrador por setor), edição de perguntas, contatos, Excel, TV Wall e regras de segurança da equipe.
+
+Também foi feito um teste de interface com navegador simulado (jsdom) cobrindo a pesquisa e as telas de gerente, administrador, visualizador e TV Wall. Esse teste não faz parte do repositório.
+
+Verificação feita neste protótipo: API (16 de 16) e interface contra **MySQL 8.0.46**.
+
+## Solução de problemas
+
+| Mensagem | Significado e o que fazer |
+| --- | --- |
+| `ECONNREFUSED` | O MySQL não está rodando ou `DB_HOST` e `DB_PORT` estão errados. Inicie o serviço do MySQL. |
+| `ER_ACCESS_DENIED_ERROR` | Usuário ou senha do MySQL incorretos. Confira `DB_USER` e `DB_PASSWORD` no `.env`. |
+| `ER_BAD_DB_ERROR` | O banco não existe. Rode `database/schema.sql` e confira `DB_NAME`. |
+| `ER_NO_SUCH_TABLE` | Faltam as tabelas. Rode `database/schema.sql`. |
+| `FALHA: a porta 3000 já está em uso` | O servidor já está rodando em outro terminal. Feche-o ou mude `PORT` no `.env`. |
+| `FALHA: defina JWT_SECRET no arquivo .env ...` | `JWT_SECRET` está vazio, curto demais ou igual ao exemplo. Gere um novo (comando na seção de variáveis de ambiente) e reinicie. |
+| `Muitas tentativas de login` | O limite de 10 tentativas em 15 minutos foi atingido. Aguarde ou reinicie o servidor em desenvolvimento. |
 
 ## Limitações conhecidas
 
-- A proteção contra envios falsos é feita só no navegador (campo escondido e tempo mínimo). Para proteção forte, é preciso adicionar um captcha validado no servidor.
-- O painel carrega as 5.000 avaliações mais recentes. Com mais volume, o cálculo deve passar para o banco.
-- Não há testes automatizados.
-- A escala de recomendação vai de 1 a 10, e o NPS oficial usa 0 a 10, então a comparação direta com o formulário em papel pode ter pequenas diferenças.
+- A proteção contra envios falsos na pesquisa é um campo escondido e um tempo mínimo no navegador, somada ao limite de envios por endereço. Para proteção forte, o ideal é um captcha validado no servidor.
+- O painel carrega as 5.000 avaliações mais recentes. Com volume maior, os totais devem ser calculados no banco.
+- A escala de recomendação vai de 1 a 10 e o NPS oficial usa 0 a 10, então a comparação direta com o formulário em papel pode ter pequenas diferenças.
+- O servidor não faz HTTPS sozinho. Em produção, publique atrás de um proxy com HTTPS e use `COOKIE_SECURE=true` e `TRUST_PROXY`.
+- Não há recuperação de senha por e-mail: o gerente (ou o administrador, para visualizadores) define uma nova senha na aba Equipe.
+- Ainda não há documentação online da API (OpenAPI/Swagger) nem a pasta `docs/` pedida na disciplina.
 
-## Contato
+## Fontes institucionais
 
-Fundação Hospitalar Dr. Oswaldo Diesel - Rua Doze de Maio, 555, Centro, Três Coroas - RS, CEP 95660-000.
-Telefone: (51) 3546-1236 | E-mail: sac@fhdod.com.br
+- Fundação Hospitalar Dr. Oswaldo Diesel, site oficial: https://fhdod.com.br/
+- Contato (endereço, telefone (51) 3546-1236 e e-mail sac@fhdod.com.br): https://fhdod.com.br/contato
+- A lista de setores combina serviços do site oficial, itens da pesquisa de satisfação impressa do hospital (FM-NEG-0.083, versão 02) e setores definidos para o protótipo; a origem de cada um está na coluna `origem` da tabela `setores`.
