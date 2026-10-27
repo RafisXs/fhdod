@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const { pool } = require('../db');
 const { emitirLogin, sairLogin, exigirLogin } = require('../lib/auth');
-const { registrarAvaliacao, ErroValidacao } = require('../lib/avaliacoes');
+const { registrarAvaliacao, iniciarRascunho, gravarResposta, concluirRascunho, ErroValidacao } = require('../lib/avaliacoes');
 const { asJson, erro, ABAIXO_MEDIA, NPS_MAX_DETRATOR } = require('../lib/util');
 
 const r = express.Router();
@@ -28,6 +28,7 @@ r.get('/perguntas', async (req, res) => {
   });
 });
 
+// Envio completo de uma vez (alternativa à gravação em tempo real; usada pela API e pelos testes)
 r.post('/avaliacoes', limite(200, 15, 'Muitos envios deste endereço. Tente novamente em alguns minutos.'), async (req, res) => {
   try {
     await registrarAvaliacao(req.body);
@@ -37,6 +38,27 @@ r.post('/avaliacoes', limite(200, 15, 'Muitos envios deste endereço. Tente nova
     throw e;
   }
 });
+
+// ---- Gravação em tempo real: cada resposta vai para o banco assim que o paciente responde ----
+// Os limites são por endereço; o hospital pode ter muitos pacientes saindo do mesmo Wi-Fi.
+const aoValidar = (fn) => async (req, res) => {
+  try { await fn(req, res); } catch (e) {
+    if (e instanceof ErroValidacao) return erro(res, 400, e.message);
+    throw e;
+  }
+};
+r.post('/avaliacoes/iniciar', limite(600, 15, 'Muitos envios deste endereço. Tente novamente em alguns minutos.'), aoValidar(async (req, res) => {
+  const token = await iniciarRascunho(req.body && req.body.setor);
+  res.status(201).json({ token });
+}));
+r.put('/avaliacoes/:token/resposta', limite(6000, 15, 'Muitos envios deste endereço. Tente novamente em alguns minutos.'), aoValidar(async (req, res) => {
+  await gravarResposta(req.params.token, req.body);
+  res.json({ ok: true });
+}));
+r.post('/avaliacoes/:token/concluir', limite(600, 15, 'Muitos envios deste endereço. Tente novamente em alguns minutos.'), aoValidar(async (req, res) => {
+  await concluirRascunho(req.params.token, req.body);
+  res.status(201).json({ ok: true });
+}));
 
 // ---- Login ----
 const HASH_FALSO = bcrypt.hashSync('senha-falsa-para-igualar-o-tempo', 12);
@@ -66,7 +88,7 @@ r.get('/tv', async (req, res) => {
     const b = Buffer.from(token);
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return erro(res, 401, 'Link da TV inválido.');
   }
-  const D30 = 'a.criado_em >= DATE_SUB(NOW(), INTERVAL 30 DAY)';
+  const D30 = "a.status = 'concluida' AND a.criado_em >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
   const [[t]] = await pool.query(
     `SELECT COUNT(*) AS total, AVG(a.nota_media) AS nota, SUM(a.nps >= 9) AS pro, SUM(a.nps <= 6) AS det,
             SUM(a.abaixo_media) AS abaixo, SUM(a.criado_em >= DATE_SUB(NOW(), INTERVAL 24 HOUR)) AS hoje
@@ -81,7 +103,7 @@ r.get('/tv', async (req, res) => {
       GROUP BY st.id, st.nome, st.ordem ORDER BY st.ordem`);
   const [serie] = await pool.query(
     `SELECT DATE_FORMAT(a.criado_em, '%Y-%m-%d') AS dia, COUNT(*) AS n FROM avaliacoes a
-      WHERE a.criado_em >= DATE_SUB(CURDATE(), INTERVAL 13 DAY) GROUP BY dia ORDER BY dia`);
+      WHERE a.status = 'concluida' AND a.criado_em >= DATE_SUB(CURDATE(), INTERVAL 13 DAY) GROUP BY dia ORDER BY dia`);
   const n = Number(t.total) || 0;
   const nps = (pro, det, q) => (q ? Math.round((100 * (Number(pro) - Number(det))) / q) : null);
   res.json({

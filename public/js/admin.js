@@ -172,7 +172,7 @@ function viewCtt() {
 var TIPOS = [["escala", "Nota de satisfação (5 níveis)"], ["positivos", "O que foi bom (escolha várias)"], ["negativos", "O que pode melhorar (escolha várias)"]];
 function viewPer() {
   var ss = mySet(); if (!QS || !ss.some(function (s) { return s.id === QS; })) QS = ss[0].id;
-  $("tab").innerHTML = '<p class="mut">Cada setor tem até 5 perguntas. A última é sempre a recomendação de 1 a 10 (só o texto pode mudar). As mudanças valem para as próximas avaliações; as respostas antigas guardam o texto da época.</p>' +
+  $("tab").innerHTML = '<p class="mut">Cada setor tem até 5 perguntas. A <strong>3ª pergunta</strong> é sempre a recomendação de 1 a 10 com carinhas (só o texto pode mudar). As mudanças valem para as próximas avaliações; as respostas antigas guardam o texto da época.</p>' +
     (all() ? '<div class="filters">' + sel("qs", "Setor", S.map(function (s) { return [s.id, s.nome]; }), QS) + "</div>" : "<h2>" + esc(sname(QS)) + "</h2>") + '<div id="qed"><p class="mut">Carregando…</p></div>';
   if ($("qs")) $("qs").onchange = function () { QS = this.value; loadQ(); };
   loadQ();
@@ -180,7 +180,7 @@ function viewPer() {
 function loadQ() {
   api("GET", "/api/admin/perguntas/" + QS).then(function (qs) {
     $("qed").innerHTML = qs.map(function (q) {
-      var u = q.ordem === 5, chips = q.tipo === "positivos" || q.tipo === "negativos";
+      var u = q.ordem === 3, chips = q.tipo === "positivos" || q.tipo === "negativos";
       return '<fieldset class="pnl qe" data-id="' + q.id + '" data-o="' + q.ordem + '" style="margin-bottom:12px"><legend><strong>Pergunta ' + q.ordem + (u ? " (recomendação de 1 a 10)" : "") + '</strong></legend><div class="fld"><label for="qt' + q.id + '">Texto da pergunta</label><input id="qt' + q.id + '" class="qt" maxlength="160" value="' + esc(q.texto) + '"></div>' +
         (u ? "" : '<div class="fld">' + sel("qk" + q.id, "Tipo de resposta", TIPOS, q.tipo) + '</div><div class="fld qo-w"' + (chips ? "" : " hidden") + '><label for="qo' + q.id + '">Opções (uma por linha, de 2 a 10)</label><textarea id="qo' + q.id + '" class="qo" rows="5">' + esc((q.opcoes || []).join("\n")) + '</textarea></div><label class="sh"><input type="checkbox" class="qa"' + (q.ativa ? " checked" : "") + "> Mostrar esta pergunta na pesquisa</label>") + "</fieldset>";
     }).join("") + '<button class="btn" id="qsave">Salvar alterações</button><p class="msg" id="qmsg" role="status"></p>';
@@ -188,7 +188,7 @@ function loadQ() {
     $("qsave").onclick = function () {
       var out = [], msg = $("qmsg");
       document.querySelectorAll(".qe").forEach(function (f) {
-        var u = f.dataset.o === "5", k = u ? "nps" : f.querySelector("select").value, o = f.querySelector(".qo");
+        var u = f.dataset.o === "3", k = u ? "nps" : f.querySelector("select").value, o = f.querySelector(".qo");
         out.push({ id: +f.dataset.id, texto: f.querySelector(".qt").value, tipo: k, opcoes: (k === "positivos" || k === "negativos") && o ? o.value.split("\n").map(function (x) { return x.trim(); }).filter(Boolean) : null, ativa: u ? true : f.querySelector(".qa").checked });
       });
       $("qsave").disabled = true; msg.className = "msg"; msg.textContent = "Salvando...";

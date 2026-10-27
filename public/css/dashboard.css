@@ -1,0 +1,41 @@
+/* Painel da equipe em monitor de computador (a partir de 1100 px de largura).
+   No celular e no tablet continua valendo o layout de coluna única do style.css. */
+@media screen and (min-width:1100px){
+  body:has(main.wide){font-size:17px}
+  body:has(main.wide) .hd div{max-width:1800px;padding:12px 40px}
+  body:has(main.wide) footer{max-width:1800px;padding:0 40px 28px}
+  main.wide{max-width:1800px;padding:20px 40px 28px}
+
+  /* Indicadores: uma linha só, números grandes */
+  main.wide .kpis{grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:16px}
+  main.wide .kpi{padding:16px 20px;border-radius:16px}
+  main.wide .kpi small{font-size:.95rem}
+  main.wide .kpi b{font-size:2.9rem;line-height:1.15;font-variant-numeric:tabular-nums}
+  main.wide .kpi span{font-size:.9rem}
+
+  /* Filtros numa linha e botões de ação alinhados à direita */
+  main.wide .filters{grid-template-columns:repeat(4,minmax(0,1fr));padding:14px 16px;gap:16px}
+
+  /* Grade de 12 colunas: evolução (8) + recomendação (4); três painéis (4+4+4); tabela por setor (12) */
+  main.wide .pn{grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}
+  main.wide .pn>.pnl{grid-column:span 4;padding:20px 22px;border-radius:16px}
+  main.wide .pn>.pnl:nth-child(1){grid-column:span 8}
+  main.wide .pn>.pnl:nth-child(6){grid-column:1/-1}
+  main.wide .pnl h3{font-size:1.2rem;margin-bottom:14px}
+  main.wide .hist{height:170px}
+  main.wide .tbl{font-size:1rem}
+  main.wide .tbl th,main.wide .tbl td{padding:11px 10px}
+
+  /* Abas, contatos, perguntas e equipe aproveitam a largura */
+  main.wide .tabs button{padding:10px 22px;font-size:1rem}
+  main.wide .cards{grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:16px}
+  main.wide #qed{display:grid;grid-template-columns:repeat(auto-fill,minmax(520px,1fr));gap:16px;align-items:start}
+  main.wide #qed .qe{margin-bottom:0!important}
+  main.wide #qed>.btn,main.wide #qed>.msg{grid-column:1/-1}
+}
+/* Monitores Full HD ou maiores: um pouco mais de respiro e letra maior */
+@media screen and (min-width:1700px){
+  body:has(main.wide){font-size:18px}
+  main.wide .kpi b{font-size:3.3rem}
+  main.wide .hist{height:200px}
+}

@@ -5,7 +5,7 @@ const ExcelJS = require('exceljs');
 const { pool } = require('../db');
 const { exigirLogin, exigirPapel, podeSetor, escopo } = require('../lib/auth');
 const { carregarAvaliacoes } = require('../lib/avaliacoes');
-const { asJson, erro, inteiro, TURNOS, TIPOS, STATUS, celulaSegura } = require('../lib/util');
+const { asJson, erro, inteiro, TURNOS, TIPOS, STATUS, NPS_ORDEM, celulaSegura } = require('../lib/util');
 
 const r = express.Router();
 r.use(exigirLogin);
@@ -55,7 +55,7 @@ r.put('/perguntas/:setor', equipe, async (req, res) => {
     if (!atual) return erro(res, 400, 'Pergunta não pertence a este setor.');
     const texto = String(q.texto || '').trim();
     if (texto.length < 5 || texto.length > 160) return erro(res, 400, `Pergunta ${atual.ordem}: o texto deve ter de 5 a 160 caracteres.`);
-    const ultima = atual.ordem === 5;
+    const ultima = atual.ordem === NPS_ORDEM; // a recomendação (carinhas 1 a 10) tem posição fixa
     const tipo = ultima ? 'nps' : q.tipo;
     if (!['escala', 'positivos', 'negativos', 'nps'].includes(tipo) || (!ultima && tipo === 'nps')) return erro(res, 400, `Pergunta ${atual.ordem}: tipo inválido.`);
     let opcoes = null;

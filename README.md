@@ -29,7 +29,8 @@ Sistema web para coletar a avaliação do atendimento por setor (pesquisa de sat
 
 **Pesquisa (pacientes e familiares, sem login) - `/`**
 
-- Escolha do setor e até 5 perguntas por setor: duas de nota (5 níveis), uma de pontos positivos, uma de pontos a melhorar e, por último, a recomendação de 1 a 10 com carinhas.
+- Escolha do setor e até 5 perguntas por setor: duas de nota (5 níveis), a **3ª pergunta é sempre a recomendação de 1 a 10 com carinhas**, seguida de uma de pontos positivos e uma de pontos a melhorar.
+- **Gravação em tempo real:** cada resposta é gravada no banco assim que o paciente responde (como rascunho). Os painéis e a TV só contam as avaliações enviadas. Se a internet falhar no meio do caminho, o envio final manda as respostas de novo.
 - Passo final: dia do atendimento, turno (Dia ou Noite), paciente ou familiar e tipo de atendimento (SUS, Plano de Saúde ou Particular).
 - Quando a nota fica abaixo da média, aparece um campo **opcional** de telefone, com autorização expressa de contato, para a gestão do setor ligar e entender o que houve.
 - Link direto por setor, para gerar QR Code: `/?setor=rx`.
@@ -39,12 +40,17 @@ Sistema web para coletar a avaliação do atendimento por setor (pesquisa de sat
 
 - Resultados: indicadores, gráficos, ranking por setor, filtros (período, setor, turno, tipo de atendimento), comparação com o período anterior, impressão e exportação em Excel.
 - Contatos: pessoas que deixaram o telefone, com situação (pendente, contatado, resolvido) e observações.
-- Perguntas: edição do texto, do tipo e das opções de cada pergunta, e ativação ou desativação. A última pergunta (recomendação de 1 a 10) é sempre mantida.
+- Perguntas: edição do texto, do tipo e das opções de cada pergunta, e ativação ou desativação. A 3ª pergunta (recomendação de 1 a 10) é sempre mantida, só o texto pode mudar.
 - Equipe: criação e desativação de contas, conforme o perfil.
 
 **TV Wall - `/tv.html`**
 
-- Painel para televisão com indicadores agregados, atualizado a cada 30 segundos. Nunca mostra telefone, nome ou resposta individual.
+- Painel para **televisão de 32 polegadas** (Full HD 1920x1080 ou HD 1366x768), vista de longe: números grandes, cores de status (verde, amarelo, vermelho), relógio, sem barra de rolagem. Atualiza a cada 30 segundos. Nunca mostra telefone, nome ou resposta individual.
+- Dica: abra em tela cheia (F11) no navegador da TV.
+
+**Painel da equipe em monitor de computador**
+
+- A partir de 1100 px de largura o painel usa o espaço do monitor: indicadores numa linha, gráficos lado a lado e tabela por setor em largura total. No celular e no tablet continua em coluna única.
 
 ## Perfis de acesso
 
@@ -91,7 +97,7 @@ Regras:
 │   ├── db.js                  # Conexão com o MySQL (pool) e teste de conexão
 │   ├── lib/                   # Autenticação, validação de avaliações, utilidades
 │   ├── routes/                # public.js (pesquisa, login, TV) e admin.js (área restrita)
-│   └── scripts/criar-gerente.js
+│   └── scripts/criar-gerente.js, migrar.js
 ├── tests/api.test.js          # Testes automatizados da API
 ├── .env.example               # Modelo das variáveis de ambiente
 └── package.json
@@ -149,7 +155,7 @@ O arquivo `.env` guarda as credenciais e **não vai para o GitHub** (está no `.
 | `DB_NAME` | Nome do banco | `hospital_experiencia` |
 | `DB_USER` | Usuário do MySQL | `root` |
 | `DB_PASSWORD` | Senha do MySQL | `sua_senha` |
-| `PORT` | Porta do site | `3002` |
+| `PORT` | Porta do site | `3000` |
 | `NODE_ENV` | `development` ou `production` | `development` |
 | `JWT_SECRET` | Texto longo e aleatório que assina o login (mínimo 24 caracteres) | veja abaixo |
 | `COOKIE_SECURE` | `true` somente quando o site estiver em HTTPS | `false` |
@@ -162,6 +168,16 @@ Para gerar o `JWT_SECRET`:
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
 
+## Atualizar um banco criado em versão anterior
+
+Se você já criou o banco com uma versão anterior, não precisa apagar nada: ao iniciar, o servidor atualiza sozinho (move a pergunta de recomendação para a 3ª posição e prepara a gravação em tempo real). Você também pode rodar manualmente:
+
+```
+npm run migrar
+```
+
+O comando pode ser repetido sem risco. Os textos de perguntas editados e as avaliações já enviadas são mantidos.
+
 ## Execução
 
 ```
@@ -172,13 +188,13 @@ No terminal deve aparecer:
 
 ```
 Banco de dados conectado com sucesso. (banco: hospital_experiencia, MySQL 8.x)
-Servidor rodando em http://localhost:3002 ...
+Servidor rodando em http://localhost:3000 ...
 ```
 
-- Pesquisa: http://localhost:3002
-- Área restrita: http://localhost:3002/admin
-- TV Wall: http://localhost:3002/tv.html
-- Teste de conexão com o banco: http://localhost:3002/api/saude
+- Pesquisa: http://localhost:3000
+- Área restrita: http://localhost:3000/admin
+- TV Wall: http://localhost:3000/tv.html
+- Teste de conexão com o banco: http://localhost:3000/api/saude
 
 **QR Code por setor** (um QR por setor, apontando para `/?setor=<código>`):
 
@@ -200,7 +216,7 @@ Banco `hospital_experiencia`, definido em `database/schema.sql`.
 | --- | --- |
 | `setores` | Pontos de entrada da pesquisa. A coluna `origem` diz se o setor vem do site oficial, da pesquisa impressa ou foi definido para o protótipo. |
 | `usuarios` | Contas da equipe: perfil (`gerente`, `admin`, `visualizador`) e setor. Uma chave única garante 1 administrador ativo por setor. |
-| `perguntas` | 5 posições por setor, editáveis. A posição 5 é sempre a recomendação de 1 a 10. |
+| `perguntas` | 5 posições por setor, editáveis. A posição 3 é sempre a recomendação de 1 a 10. |
 | `avaliacoes` | Uma linha por avaliação, anônima. Guarda turno, perfil de quem respondeu, tipo de atendimento, telefone (opcional) e situação do contato. |
 | `respostas` | Uma linha por pergunta respondida, com o texto da pergunta da época. |
 
@@ -218,7 +234,10 @@ Todas as respostas são JSON, exceto a exportação em Excel. Pedidos que altera
 | --- | --- | --- |
 | GET | `/api/saude` | Teste de conexão com o banco |
 | GET | `/api/perguntas` | Setores e perguntas ativas |
-| POST | `/api/avaliacoes` | Enviar uma avaliação |
+| POST | `/api/avaliacoes/iniciar` | Começa uma avaliação (rascunho) e devolve um token |
+| PUT | `/api/avaliacoes/:token/resposta` | Grava ou troca uma resposta na hora |
+| POST | `/api/avaliacoes/:token/concluir` | Conclui: dia, turno, tipo de atendimento e telefone opcional |
+| POST | `/api/avaliacoes` | Envia uma avaliação completa de uma vez |
 | POST | `/api/login` | Entrar (limite de 10 tentativas a cada 15 minutos) |
 | POST | `/api/logout` | Sair |
 | GET | `/api/me` | Dados de quem está logado |
@@ -255,13 +274,13 @@ Com o servidor ligado e um gerente já criado:
 
 ```
 PowerShell:
-$env:TEST_GERENTE_EMAIL="gerente@exemplo.com"; $env:TEST_GERENTE_SENHA="sua-senha"; $env:BASE_URL="http://localhost:3002"; npm test
+$env:TEST_GERENTE_EMAIL="gerente@exemplo.com"; $env:TEST_GERENTE_SENHA="sua-senha"; $env:BASE_URL="http://localhost:3000"; npm test
 
 Linux e macOS:
-BASE_URL=http://localhost:3002 TEST_GERENTE_EMAIL=gerente@exemplo.com TEST_GERENTE_SENHA=sua-senha npm test
+BASE_URL=http://localhost:3000 TEST_GERENTE_EMAIL=gerente@exemplo.com TEST_GERENTE_SENHA=sua-senha npm test
 ```
 
-Os 16 testes cobrem: conexão, perguntas, proteção CSRF, login, registro de avaliação, regras do telefone, validações, os três perfis (inclusive 1 administrador por setor), edição de perguntas, contatos, Excel, TV Wall e regras de segurança da equipe.
+Os 18 testes cobrem: conexão, perguntas, proteção CSRF, login, registro de avaliação, gravação em tempo real (rascunho), regras do telefone, validações, os três perfis (inclusive 1 administrador por setor), edição de perguntas, contatos, Excel, TV Wall e regras de segurança da equipe.
 
 Também foi feito um teste de interface com navegador simulado (jsdom) cobrindo a pesquisa e as telas de gerente, administrador, visualizador e TV Wall. Esse teste não faz parte do repositório.
 

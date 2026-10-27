@@ -12,9 +12,10 @@ const RESPONDENTES = ['Paciente', 'Familiar'];
 const TIPOS = ['SUS', 'Plano de Saúde', 'Particular'];
 const STATUS = ['pendente', 'contatado', 'resolvido'];
 const ABAIXO_MEDIA = 3; // média das perguntas de nota abaixo disso = abaixo da média
+const NPS_ORDEM = 3; // posição fixa da pergunta de recomendação (carinhas de 1 a 10)
 const NPS_MAX_DETRATOR = 6; // recomendação até 6 também conta como abaixo da média
 
 // Evita que o Excel execute fórmulas escondidas em textos (=, +, -, @).
 const celulaSegura = (v) => (typeof v === 'string' && /^[=+\-@\t\r]/.test(v) ? "'" + v : v);
 
-module.exports = { asJson, erro, inteiro, TURNOS, RESPONDENTES, TIPOS, STATUS, ABAIXO_MEDIA, NPS_MAX_DETRATOR, celulaSegura };
+module.exports = { asJson, erro, inteiro, TURNOS, RESPONDENTES, TIPOS, STATUS, ABAIXO_MEDIA, NPS_ORDEM, NPS_MAX_DETRATOR, celulaSegura };

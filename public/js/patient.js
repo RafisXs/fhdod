@@ -2,6 +2,8 @@
 var LAB = ["Muito insatisfeito", "Insatisfeito", "Regular", "Satisfeito", "Muito satisfeito"];
 var BELOW = 3, NPSMAX = 6;
 var PQ = {}, cur = null, st = 0, ans = { r: {} }, T0 = Date.now();
+// Gravação em tempo real: cada resposta vai para o banco assim que é dada (fila para manter a ordem)
+var tok = null, tokP = null, fila = Promise.resolve(), falhas = {};
 
 function Q() { return PQ[cur.id] || []; }
 
@@ -23,7 +25,28 @@ function boot() {
   }).catch(loadFail);
 }
 
-function start(s) { cur = s; st = 0; ans = { r: {} }; T0 = Date.now(); render(); }
+function start(s) { cur = s; st = 0; ans = { r: {} }; T0 = Date.now(); tok = null; tokP = null; falhas = {}; render(); }
+
+// Cria o rascunho no banco na primeira resposta (quem só abre a página não deixa nada gravado)
+function token() {
+  if (tok) return Promise.resolve(tok);
+  if (!tokP) {
+    var setor = cur.id;
+    tokP = api("POST", "/api/avaliacoes/iniciar", { setor: setor }).then(function (j) { if (cur && cur.id === setor) tok = j.token; return j.token; })
+      .catch(function (e) { tokP = null; throw e; });
+  }
+  return tokP;
+}
+// Grava uma resposta agora. Se a internet falhar, o envio final manda tudo de novo (nada se perde).
+function salvar(q) {
+  var v = ans.r[q.id], corpo = q.tipo === "escala" || q.tipo === "nps" ? { p: q.id, n: v } : { p: q.id, v: v || [] }, setor = cur.id;
+  fila = fila.then(function () {
+    if (!cur || cur.id !== setor) return;
+    return token().then(function (t) { return api("PUT", "/api/avaliacoes/" + t + "/resposta", corpo); })
+      .then(function () { delete falhas[q.id]; })
+      .catch(function () { falhas[q.id] = true; });
+  });
+}
 
 function home() {
   cur = null;
@@ -45,11 +68,11 @@ function render() {
   var q = qs[st], a = ans.r[q.id];
   if (q.tipo === "escala") {
     draw(hdr() + "<h2>" + esc(q.texto) + '</h2><div class="opts">' + [4, 3, 2, 1, 0].map(function (i) { return '<button class="opt" data-v="' + (i + 1) + '" aria-pressed="' + (a === i + 1) + '">' + LAB[i] + "</button>"; }).join("") + "</div>");
-    app.querySelectorAll(".opt").forEach(function (b) { b.onclick = function () { ans.r[q.id] = +b.dataset.v; st++; render(); }; });
+    app.querySelectorAll(".opt").forEach(function (b) { b.onclick = function () { ans.r[q.id] = +b.dataset.v; salvar(q); st++; render(); }; });
   } else if (q.tipo === "nps") {
     var btns = ""; for (var k = 1; k <= 10; k++) btns += '<button data-n="' + k + '" aria-label="Nota ' + k + '" aria-pressed="' + (a === k) + '">' + face((k - 1) / 9) + k + "</button>";
     draw(hdr() + "<h2>" + esc(q.texto) + '</h2><div class="nps">' + btns + '</div><div class="ends"><span>1 = nada provável</span><span>10 = extremamente provável</span></div><button class="cta" id="go"' + (a == null ? " disabled" : "") + ">Continuar</button>");
-    app.querySelectorAll(".nps button").forEach(function (b) { b.onclick = function () { ans.r[q.id] = +b.dataset.n; render(); }; });
+    app.querySelectorAll(".nps button").forEach(function (b) { b.onclick = function () { ans.r[q.id] = +b.dataset.n; salvar(q); render(); }; });
     document.getElementById("go").onclick = function () { st++; render(); };
   } else {
     var arr = ans.r[q.id] = a || [];
@@ -62,6 +85,7 @@ function render() {
           if (none(o)) arr.length = 0; else for (var x = arr.length - 1; x >= 0; x--) if (none(arr[x])) arr.splice(x, 1);
           arr.push(o);
         }
+        salvar(q);
         render();
       };
     });
@@ -102,10 +126,17 @@ function details() {
       if (!cs.checked) { se.textContent = "Para deixar o telefone, marque a autorização de contato."; return; }
     }
     sd.disabled = true; sd.textContent = "Enviando..."; se.textContent = "";
-    var resp = [], nps = null;
-    Q().forEach(function (q) { var v = ans.r[q.id]; if (q.tipo === "nps") nps = v; else if (q.tipo === "escala") resp.push({ p: q.id, n: v }); else resp.push({ p: q.id, v: v || [] }); });
-    api("POST", "/api/avaliacoes", { setor: cur.id, nps: nps, respostas: resp, data_atendimento: ans.d, turno: ans.tu, respondente: ans.re, tipo_atendimento: ans.ti, telefone: dg || null, consentimento: !!dg })
-      .then(function () { fin(!!dg); })
+    var resp = [];
+    Q().forEach(function (q) { var v = ans.r[q.id]; if (q.tipo === "nps" || q.tipo === "escala") resp.push({ p: q.id, n: v }); else resp.push({ p: q.id, v: v || [] }); });
+    var corpo = { respostas: resp, data_atendimento: ans.d, turno: ans.tu, respondente: ans.re, tipo_atendimento: ans.ti, telefone: dg || null, consentimento: !!dg };
+    // As respostas já foram gravando uma a uma; aqui vão de novo só como garantia, junto com os detalhes finais
+    function enviar(tentativa) {
+      return fila.then(token).then(function (t) { return api("POST", "/api/avaliacoes/" + t + "/concluir", corpo); }).catch(function (e) {
+        if (tentativa < 1 && e.status === 400 && /não está mais aberta|não encontrada/.test(e.message)) { tok = null; tokP = null; return enviar(tentativa + 1); }
+        throw e;
+      });
+    }
+    enviar(0).then(function () { tok = null; tokP = null; fin(!!dg); })
       .catch(function (e) { se.textContent = e.status === 400 || e.status === 429 ? e.message : "Não foi possível enviar agora. Tente novamente."; sd.textContent = "Enviar avaliação"; chk(); });
   };
   bind();

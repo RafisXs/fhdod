@@ -1,25 +1,44 @@
-:root{--bg:#12151A;--card:#1C2128;--ink:#F4F6F8;--mut:#B6BEC8;--red:#FF6B6B;--line:#2E3640}
+/* TV Wall para televisão de 32" (Full HD 1920x1080 ou HD 1366x768), vista de longe.
+   Tudo usa "rem" e o tamanho base acompanha a tela (1rem = 16px em 1920x1080), então a tela
+   inteira se ajusta a qualquer resolução 16:9 sem barra de rolagem. */
+:root{--bg:#0F1318;--card:#1A2028;--ink:#FFFFFF;--mut:#C3CBD5;--red:#FF6B6B;--ok:#4ADE80;--mid:#FBBF24;--bad:#FF6B6B;--line:#2E3640}
+html{font-size:min(calc(100vw / 120),calc(100vh / 67.5))}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:clamp(14px,1.4vw,22px)/1.4 "Segoe UI",system-ui,Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column}
-.tvh{display:flex;align-items:center;gap:20px;padding:12px 24px;background:#fff;border-bottom:5px solid #D71E26;color:#20232A}
-.tvh h1{flex:1;margin:0;font-size:clamp(18px,2.2vw,34px)}
-.tvh img{height:clamp(40px,5vw,72px);width:auto}
-#rel{font-size:clamp(16px,1.8vw,28px);font-weight:700;font-variant-numeric:tabular-nums}
-main{flex:1;padding:20px 24px;display:grid;gap:18px;grid-template-columns:repeat(5,1fr);grid-auto-rows:min-content}
-.load{grid-column:1/-1;text-align:center;color:var(--mut)}
-.k{background:var(--card);border:1px solid var(--line);border-top:6px solid var(--red);border-radius:16px;padding:16px 20px}
-.k small{display:block;color:var(--mut);font-size:.85em;font-weight:600}
-.k b{display:block;font-size:clamp(34px,5vw,84px);line-height:1.1;font-variant-numeric:tabular-nums}
-.k span{color:var(--mut);font-size:.8em}
-.p{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 22px}
-.p h2{margin:0 0 14px;font-size:1.15em}
-.rk{grid-column:span 3}.sr{grid-column:span 2}
-.hb{display:grid;grid-template-columns:minmax(120px,32%) 1fr auto;gap:12px;align-items:center;margin-bottom:10px}
-.tr{display:block;height:16px;background:#2A323C;border-radius:8px;overflow:hidden}
-.tr i{display:block;height:100%;background:var(--red);border-radius:8px}
-.hb b{font-variant-numeric:tabular-nums;white-space:nowrap}
-.bdg{display:inline-block;font-size:.7em;font-weight:700;padding:1px 8px;border-radius:999px;border:1px solid #F2B27E;color:#F2B27E;margin-left:8px}
-.sv{width:100%;height:auto;color:var(--mut)}.sv rect{fill:var(--red)}.sv text{fill:var(--mut)}
-.tvf{padding:10px 24px;font-size:.75em;color:var(--mut);border-top:1px solid var(--line)}
-.err{grid-column:1/-1;color:#F2B27E;font-weight:700;text-align:center}
-@media (max-width:900px){main{grid-template-columns:1fr 1fr}.rk,.sr{grid-column:1/-1}}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1.25rem/1.3 "Segoe UI",system-ui,Arial,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+/* margem de segurança: muitas TVs cortam as bordas da imagem */
+.tvh{display:flex;align-items:center;gap:2rem;padding:.9rem 2.5rem;background:#fff;border-bottom:.4rem solid #D71E26;color:#20232A;flex:none}
+.tvh img{height:4.6rem;width:auto}
+.tvh h1{flex:1;margin:0;font-size:2.3rem;line-height:1.1}
+.tvh h1 small{display:block;font-size:1.2rem;font-weight:600;color:#5A6270;margin-top:.2rem}
+#rel{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;font-size:2.6rem;line-height:1}
+#rel small{display:block;font-size:1.1rem;font-weight:600;color:#5A6270;margin-top:.3rem}
+#rel i{display:inline-block;width:.9rem;height:.9rem;border-radius:50%;background:#16A34A;margin-right:.5rem;animation:pulso 2s infinite}
+@keyframes pulso{50%{opacity:.25}}
+main{flex:1;min-height:0;padding:1.3rem 2.5rem 1rem;display:grid;gap:1.3rem;grid-template-columns:repeat(5,1fr);grid-template-rows:auto 1fr}
+.load,.err{grid-column:1/-1;align-self:center;text-align:center;font-size:2rem;color:var(--mut)}
+.err{color:var(--mid);font-weight:700}
+.k{background:var(--card);border:.1rem solid var(--line);border-top:.45rem solid var(--red);border-radius:1.1rem;padding:1rem 1.5rem 1.1rem;display:flex;flex-direction:column;justify-content:center}
+.k small{color:var(--mut);font-size:1.5rem;font-weight:700}
+.k b{display:block;font-size:6rem;line-height:1.05;font-variant-numeric:tabular-nums;font-weight:800}
+.k span{color:var(--mut);font-size:1.15rem}
+.k.ok{border-top-color:var(--ok)}.k.mid{border-top-color:var(--mid)}.k.bad{border-top-color:var(--bad)}
+.k.ok b{color:var(--ok)}.k.mid b{color:var(--mid)}.k.bad b{color:var(--bad)}
+.p{background:var(--card);border:.1rem solid var(--line);border-radius:1.1rem;padding:1.1rem 1.6rem;min-height:0;display:flex;flex-direction:column}
+.p h2{margin:0 0 .7rem;font-size:1.7rem;flex:none}
+.rk{grid-column:span 3}
+.col{grid-column:span 2;display:grid;grid-template-rows:1fr auto;gap:1.3rem;min-height:0}
+.rows{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:space-between}
+.hb{display:grid;grid-template-columns:minmax(0,50%) 1fr 9.5rem;gap:1.1rem;align-items:center;font-size:1.65rem}
+.hb .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr{display:block;height:1.5rem;background:#2A323C;border-radius:.75rem;overflow:hidden}
+.tr i{display:block;height:100%;border-radius:.75rem;background:var(--ok)}
+.hb.mid .tr i{background:var(--mid)}.hb.bad .tr i{background:var(--bad)}.hb.nd .tr i{background:#55606D}
+.hb b{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;font-size:1.8rem}
+.hb.bad b{color:var(--bad)}.hb.mid b{color:var(--mid)}.hb b small{font-size:1rem;font-weight:600;color:var(--mut);margin-left:.3rem}
+.bdg{display:inline-block;font-size:.9rem;font-weight:800;padding:0 .55rem;border-radius:999px;border:.12rem solid var(--bad);color:var(--bad);margin-left:.6rem;vertical-align:middle}
+.sv{width:100%;flex:1;min-height:0;color:var(--mut)}.sv rect{fill:var(--red)}.sv text{fill:var(--mut)}
+.ab{display:flex;align-items:center;gap:1.3rem}
+.ab b{font-size:4.2rem;line-height:1;color:var(--mid);font-variant-numeric:tabular-nums}
+.ab span{font-size:1.35rem;color:var(--mut)}
+.tvf{flex:none;padding:.5rem 2.5rem .7rem;font-size:1.05rem;color:var(--mut);border-top:.1rem solid var(--line)}

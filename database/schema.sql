@@ -5,6 +5,9 @@
 -- Pode ser executado mais de uma vez sem apagar dados.
 -- =====================================================================
 
+-- Garante que acentos (ex.: "Plano de Saúde") sejam gravados certos em qualquer cliente MySQL
+SET NAMES utf8mb4;
+
 CREATE DATABASE IF NOT EXISTS hospital_experiencia
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE hospital_experiencia;
@@ -62,8 +65,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
 
 -- ---------------------------------------------------------------------
 -- 3) PERGUNTAS: 5 posições fixas por setor (editáveis pelo gerente e pelo admin do setor)
---    posições 1 a 4: escala | positivos | negativos
---    posição 5: sempre "nps" (recomendação de 1 a 10), não pode ser desativada
+--    posições 1, 2, 4 e 5: escala | positivos | negativos
+--    posição 3: sempre "nps" (recomendação de 1 a 10 com carinhas), não pode ser desativada
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS perguntas (
   id       INT          NOT NULL AUTO_INCREMENT,
@@ -77,25 +80,31 @@ CREATE TABLE IF NOT EXISTS perguntas (
   UNIQUE KEY uk_perguntas_setor_ordem (setor_id, ordem),
   CONSTRAINT fk_perguntas_setor FOREIGN KEY (setor_id) REFERENCES setores (id),
   CONSTRAINT ck_perguntas_ordem CHECK (ordem BETWEEN 1 AND 5),
-  CONSTRAINT ck_perguntas_nps   CHECK ((tipo = 'nps') = (ordem = 5)),
+  CONSTRAINT ck_perguntas_nps   CHECK ((tipo = 'nps') = (ordem = 3)),
   CONSTRAINT ck_perguntas_nps_ativa CHECK (tipo <> 'nps' OR ativa = 1)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
--- 4) AVALIACOES: uma linha por avaliação enviada (anônima)
+-- 4) AVALIACOES: uma linha por avaliação (anônima)
+--    status: 'rascunho' = o paciente está respondendo (cada resposta é gravada na hora)
+--            'concluida' = enviada. Os painéis e a TV contam só as concluídas.
+--    token: identifica o rascunho no navegador do paciente (some do uso depois de concluir)
 --    telefone: opcional, só quando a nota é abaixo da média e há autorização
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS avaliacoes (
   id                   BIGINT       NOT NULL AUTO_INCREMENT,
   criado_em            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   setor_id             VARCHAR(10)  NOT NULL,
-  nps                  TINYINT      NOT NULL,
+  status               ENUM('rascunho','concluida') NOT NULL DEFAULT 'concluida',
+  token                CHAR(32)     NULL,
+  nps                  TINYINT      NULL,
   nota_media           DECIMAL(3,2) NULL,
   abaixo_media         TINYINT(1)   NOT NULL DEFAULT 0,
-  data_atendimento     DATE         NOT NULL,
-  turno                ENUM('Dia','Noite') NOT NULL,
-  respondente          ENUM('Paciente','Familiar') NOT NULL,
-  tipo_atendimento     ENUM('SUS','Plano de Saúde','Particular') NOT NULL,
+  data_atendimento     DATE         NULL,
+  turno                ENUM('Dia','Noite') NULL,
+  respondente          ENUM('Paciente','Familiar') NULL,
+  tipo_atendimento     ENUM('SUS','Plano de Saúde','Particular') NULL,
   telefone             VARCHAR(11)  NULL,
   consentimento_contato TINYINT(1)  NOT NULL DEFAULT 0,
   contato_status       ENUM('pendente','contatado','resolvido') NOT NULL DEFAULT 'pendente',
@@ -103,12 +112,16 @@ CREATE TABLE IF NOT EXISTS avaliacoes (
   contato_em           DATETIME     NULL,
   contato_por          INT          NULL,
   PRIMARY KEY (id),
+  UNIQUE KEY uk_avaliacoes_token (token),
+  KEY ix_avaliacoes_status_criado (status, criado_em),
   KEY ix_avaliacoes_criado (criado_em),
   KEY ix_avaliacoes_setor_criado (setor_id, criado_em),
   CONSTRAINT fk_avaliacoes_setor FOREIGN KEY (setor_id) REFERENCES setores (id),
   CONSTRAINT fk_avaliacoes_contato_por FOREIGN KEY (contato_por) REFERENCES usuarios (id) ON DELETE SET NULL,
   CONSTRAINT ck_avaliacoes_nps CHECK (nps BETWEEN 1 AND 10),
-  CONSTRAINT ck_avaliacoes_tel CHECK (telefone IS NULL OR consentimento_contato = 1)
+  CONSTRAINT ck_avaliacoes_tel CHECK (telefone IS NULL OR consentimento_contato = 1),
+  CONSTRAINT ck_avaliacoes_concluida CHECK (status = 'rascunho' OR (nps IS NOT NULL AND data_atendimento IS NOT NULL
+    AND turno IS NOT NULL AND respondente IS NOT NULL AND tipo_atendimento IS NOT NULL))
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
@@ -124,6 +137,7 @@ CREATE TABLE IF NOT EXISTS respostas (
   valor_num      TINYINT      NULL,
   valores        JSON         NULL,
   PRIMARY KEY (id),
+  UNIQUE KEY uk_respostas_avaliacao_pergunta (avaliacao_id, pergunta_id),
   KEY ix_respostas_avaliacao (avaliacao_id),
   CONSTRAINT fk_respostas_avaliacao FOREIGN KEY (avaliacao_id) REFERENCES avaliacoes (id) ON DELETE CASCADE,
   CONSTRAINT fk_respostas_pergunta  FOREIGN KEY (pergunta_id)  REFERENCES perguntas (id) ON DELETE SET NULL
@@ -167,25 +181,26 @@ INSERT IGNORE INTO perguntas (setor_id, ordem, texto, tipo) VALUES
   ('tr', 1, 'Como foi o atendimento médico?', 'escala'),
   ('tr', 2, 'Como foi o tempo de espera?', 'escala');
 
--- Perguntas 3, 4 e 5 (iguais em todos os setores; depois podem ser editadas)
+-- Perguntas 3, 4 e 5 (iguais em todos os setores; depois podem ser editadas):
+--   3 = recomendação de 1 a 10 | 4 = pontos positivos | 5 = pontos a melhorar
 INSERT IGNORE INTO perguntas (setor_id, ordem, texto, tipo, opcoes)
-SELECT id, 3, 'O que foi bom no atendimento?', 'positivos',
+SELECT id, 4, 'O que foi bom no atendimento?', 'positivos',
        JSON_ARRAY('Equipe atenciosa','Rapidez','Informações claras','Ambiente limpo','Conforto','Respeito')
 FROM setores;
 
 INSERT IGNORE INTO perguntas (setor_id, ordem, texto, tipo, opcoes)
-SELECT id, 4, 'O que pode melhorar?', 'negativos',
+SELECT id, 5, 'O que pode melhorar?', 'negativos',
        JSON_ARRAY('Demora','Falta de informação','Atendimento frio','Limpeza','Estrutura e conforto','Nada a melhorar')
 FROM setores;
 
 INSERT IGNORE INTO perguntas (setor_id, ordem, texto, tipo, opcoes)
-SELECT id, 5, 'De 1 a 10, qual a chance de você recomendar o hospital a um amigo ou familiar?', 'nps', NULL
+SELECT id, 3, 'De 1 a 10, qual a chance de você recomendar o hospital a um amigo ou familiar?', 'nps', NULL
 FROM setores;
 
 -- Internação Clínica tem a opção extra "Alimentação" (só se ainda não existir)
 UPDATE perguntas
    SET opcoes = JSON_ARRAY_APPEND(opcoes, '$', 'Alimentação')
- WHERE setor_id = 'ic' AND ordem = 3
+ WHERE setor_id = 'ic' AND tipo = 'positivos'
    AND JSON_SEARCH(opcoes, 'one', 'Alimentação') IS NULL;
 
 -- O primeiro gerente é criado pelo terminal, com senha protegida:

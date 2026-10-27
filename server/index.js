@@ -6,6 +6,8 @@ const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const { testarConexao, explicarErro } = require('./db');
 const { exigirCabecalho, segredoValido } = require('./lib/auth');
+const { migrar } = require('./lib/migracao');
+const { pool } = require('./db');
 
 const app = express();
 app.disable('x-powered-by');
@@ -38,13 +40,19 @@ app.use((e, req, res, next) => {
   res.status(500).json({ erro: 'Erro interno. Tente novamente.' });
 });
 
-const PORT = Number(process.env.PORT || 3002);
+const PORT = Number(process.env.PORT || 3000);
 (async () => {
   if (!segredoValido(process.env.JWT_SECRET)) {
     console.error('FALHA: defina JWT_SECRET no arquivo .env com um texto longo e aleatório (mínimo 24 caracteres e diferente do exemplo do .env.example). Veja a seção "Variáveis de ambiente" do README.');
     process.exit(1);
   }
-  await testarConexao();
+  if (await testarConexao()) {
+    // Atualiza sozinho um banco criado por versão anterior (não mexe em banco já atualizado)
+    try {
+      const feitos = await migrar(pool);
+      if (feitos.length) console.log('Banco atualizado: ' + feitos.join('; ') + '.');
+    } catch (e) { console.error('FALHA ao atualizar o banco (rode "npm run migrar" e veja a mensagem):', e.code || '', e.message); process.exit(1); }
+  }
   // No Express 5, se a porta não puder ser usada o erro chega aqui: não anunciar sucesso nesse caso
   app.listen(PORT, (err) => {
     if (err) {

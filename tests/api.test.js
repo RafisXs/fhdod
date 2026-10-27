@@ -2,7 +2,7 @@
 //
 // Como rodar (com o servidor e o MySQL ligados, de preferência num banco de TESTE):
 //   Windows PowerShell:
-//     $env:TEST_GERENTE_EMAIL="gerente@exemplo.com"; $env:TEST_GERENTE_SENHA="sua-senha"; $env:BASE_URL="http://localhost:3002"; npm test
+//     $env:TEST_GERENTE_EMAIL="gerente@exemplo.com"; $env:TEST_GERENTE_SENHA="sua-senha"; $env:BASE_URL="http://localhost:3000"; npm test
 //   Linux/macOS:
 //     TEST_GERENTE_EMAIL=gerente@exemplo.com TEST_GERENTE_SENHA=sua-senha npm test
 //
@@ -10,7 +10,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const BASE = process.env.BASE_URL || 'http://localhost:3002';
+const BASE = process.env.BASE_URL || 'http://localhost:3000';
 const GERENTE = { email: process.env.TEST_GERENTE_EMAIL, senha: process.env.TEST_GERENTE_SENHA };
 const unico = Date.now();
 
@@ -55,7 +55,9 @@ test('2. A pesquisa lista os setores e as perguntas', async () => {
   assert.ok(json.setores.length >= 10);
   const rx = json.perguntas.filter((q) => q.setor_id === 'rx');
   assert.ok(rx.length >= 1 && rx.length <= 5, 'no máximo 5 perguntas por setor');
-  assert.equal(rx[rx.length - 1].tipo, 'nps', 'a última pergunta é a recomendação de 1 a 10');
+  assert.equal(rx[2].tipo, 'nps', 'a 3ª pergunta é a recomendação de 1 a 10');
+  assert.equal(rx[2].ordem, 3);
+  assert.ok(rx.filter((q) => q.tipo === 'nps').length === 1, 'só uma pergunta de recomendação');
 });
 
 test('3. Pedido que altera dados sem o cabeçalho de segurança é barrado', async () => {
@@ -176,12 +178,61 @@ test('11. Visualizador só consulta: nunca vê telefone e não altera nada', asy
   assert.ok(rxApenas.every((x) => x.setor === 'rx'), 'visualizador do Raio-X só vê o Raio-X');
 });
 
+test('11b. Gravação em tempo real: cada resposta vai para o banco na hora e só conta depois de concluir', async () => {
+  const { json } = await req('GET', '/api/perguntas');
+  const qs = json.perguntas.filter((q) => q.setor_id === 'ob');
+  const antes = (await req('GET', '/api/admin/avaliacoes', null, gerente)).json.length;
+  const ini = await req('POST', '/api/avaliacoes/iniciar', { setor: 'ob' });
+  assert.equal(ini.status, 201);
+  const t = ini.json.token;
+  assert.match(t, /^[0-9a-f]{32}$/);
+  assert.equal((await req('POST', '/api/avaliacoes/iniciar', { setor: 'nao-existe' })).status, 400);
+  // 1ª resposta: já está no banco, mas a avaliação ainda não aparece nos painéis
+  const q1 = qs[0], qn = qs.find((q) => q.tipo === 'nps'), qp = qs.find((q) => q.tipo === 'positivos');
+  assert.equal((await req('PUT', `/api/avaliacoes/${t}/resposta`, { p: q1.id, n: 2 })).status, 200);
+  assert.equal((await req('PUT', `/api/avaliacoes/${t}/resposta`, { p: q1.id, n: 5 })).status, 200, 'trocar a resposta funciona');
+  assert.equal((await req('PUT', `/api/avaliacoes/${t}/resposta`, { p: qn.id, n: 11 })).status, 400, 'recomendação só de 1 a 10');
+  assert.equal((await req('PUT', `/api/avaliacoes/${t}/resposta`, { p: qp.id, v: ['opcao-inventada'] })).status, 400);
+  assert.equal((await req('PUT', `/api/avaliacoes/${'0'.repeat(32)}/resposta`, { p: q1.id, n: 3 })).status, 400, 'token desconhecido');
+  assert.equal((await req('GET', '/api/admin/avaliacoes', null, gerente)).json.length, antes, 'rascunho não aparece no painel');
+  // concluir sem terminar as perguntas obrigatórias é recusado
+  const base = { data_atendimento: hoje(), turno: 'Noite', respondente: 'Familiar', tipo_atendimento: 'Particular' };
+  assert.equal((await req('POST', `/api/avaliacoes/${t}/concluir`, base)).status, 400, 'faltam respostas');
+  for (const q of qs) {
+    if (q.tipo === 'escala' && q !== q1) await req('PUT', `/api/avaliacoes/${t}/resposta`, { p: q.id, n: 4 });
+  }
+  await req('PUT', `/api/avaliacoes/${t}/resposta`, { p: qn.id, n: 9 });
+  await req('PUT', `/api/avaliacoes/${t}/resposta`, { p: qp.id, v: [qp.opcoes[0]] });
+  const fim = await req('POST', `/api/avaliacoes/${t}/concluir`, base);
+  assert.equal(fim.status, 201, JSON.stringify(fim.json));
+  const lista = (await req('GET', '/api/admin/avaliacoes', null, gerente)).json;
+  assert.equal(lista.length, antes + 1);
+  const a = lista.find((x) => x.setor === 'ob' && x.nps === 9 && x.turno === 'Noite' && x.respondente === 'Familiar');
+  assert.ok(a, 'avaliação concluída aparece com as respostas gravadas');
+  assert.ok(a.nota_media > 4 && a.nota_media <= 5);
+  // depois de concluída, o token deixa de valer
+  assert.equal((await req('PUT', `/api/avaliacoes/${t}/resposta`, { p: q1.id, n: 1 })).status, 400);
+  assert.equal((await req('POST', `/api/avaliacoes/${t}/concluir`, base)).status, 400);
+});
+
+test('11c. Concluir reenvia as respostas (garantia se a internet falhou no meio) e o telefone só vale se a nota for baixa', async () => {
+  const { json } = await req('GET', '/api/perguntas');
+  const qs = json.perguntas.filter((q) => q.setor_id === 'tr');
+  const t = (await req('POST', '/api/avaliacoes/iniciar', { setor: 'tr' })).json.token;
+  const resp = qs.map((q) => (q.tipo === 'escala' ? { p: q.id, n: 1 } : q.tipo === 'nps' ? { p: q.id, n: 2 } : { p: q.id, v: [q.opcoes[0]] }));
+  const base = { respostas: resp, data_atendimento: hoje(), turno: 'Dia', respondente: 'Paciente', tipo_atendimento: 'Plano de Saúde' };
+  assert.equal((await req('POST', `/api/avaliacoes/${t}/concluir`, { ...base, telefone: '51977776666', consentimento: false })).status, 400, 'telefone exige autorização');
+  assert.equal((await req('POST', `/api/avaliacoes/${t}/concluir`, { ...base, telefone: '51977776666', consentimento: true })).status, 201);
+  const a = (await req('GET', '/api/admin/avaliacoes', null, gerente)).json.find((x) => x.setor === 'tr' && x.telefone === '51977776666');
+  assert.ok(a && a.abaixo_media, 'nota baixa guarda o telefone para contato');
+});
+
 test('12. Editar perguntas: administrador edita o próprio setor, gerente edita todos', async () => {
   const atuais = (await req('GET', '/api/admin/perguntas/rx', null, adminRx)).json;
   assert.equal(atuais.length, 5);
   const original = JSON.parse(JSON.stringify(atuais));
   const editadas = atuais.map((q) => ({ id: q.id, texto: q.ordem === 1 ? 'Pergunta editada pelo administrador de teste?' : q.texto, tipo: q.tipo, opcoes: q.opcoes, ativa: q.ordem === 2 ? false : true }));
-  editadas[4].ativa = false; // tentativa de desativar a recomendação: deve continuar ativa
+  editadas[2].ativa = false; // tentativa de desativar a recomendação (3ª pergunta): deve continuar ativa
   const put = await req('PUT', '/api/admin/perguntas/rx', { perguntas: editadas }, adminRx);
   assert.equal(put.status, 200, JSON.stringify(put.json));
   const publicas = (await req('GET', '/api/perguntas')).json.perguntas.filter((q) => q.setor_id === 'rx');
