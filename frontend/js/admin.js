@@ -75,7 +75,7 @@ function body(rows) {
     '<section class="pnl w2"><h3>Resultado por setor</h3><div class="tbl-wrap"><table class="tbl"><caption class="sr">Resultado por setor</caption><thead><tr><th>Setor</th><th>Resp.</th><th>Nota</th><th>NPS</th><th>Satisf.</th><th>Abaixo da média</th><th>Mais elogiado</th><th>Mais a melhorar</th></tr></thead><tbody>' + trs + '</tbody></table></div><p class="mut" style="margin:8px 0 0">Ordenado da menor para a maior nota. "Atenção" aparece nos setores com nota média abaixo de 3.</p></section></div>';
 }
 
-function falhou(e) { if (e.status === 401) { ME = null; DATA = []; UPDT = null; loginView("Sessão expirada. Entre novamente."); return true; } return false; }
+function falhou(e) { if (e.status === 401) { pararVivo(); ME = null; DATA = []; UPDT = null; loginView("Sessão expirada. Entre novamente."); return true; } return false; }
 function loadData(cb) {
   api("GET", "/api/admin/avaliacoes").then(function (rows) { DATA = rows; LOADERR = null; UPDT = new Date(); cb(); })
     .catch(function (e) { if (falhou(e)) return; DATA = []; LOADERR = e; UPDT = new Date(); cb(); });
@@ -84,12 +84,16 @@ function updBadge() { var n = DATA.filter(function (r) { return r.telefone && r.
 
 /* ---------- Login e estrutura ---------- */
 function boot() {
-  api("GET", "/api/perguntas").then(function (j) { S = j.setores; return api("GET", "/api/me"); })
-    .then(function (me) { entrou(me); })
+  api("GET", "/api/me").then(function (me) { entrou(me); })
     .catch(function (e) { if (e.status === 401) loginView(); else erroTela(e); });
 }
 function erroTela(e) { draw('<h1>Não foi possível abrir</h1><div class="note">' + esc(e.message) + (e.dica ? "<br>" + esc(e.dica) : "") + '</div><button class="cta" id="rt">Tentar de novo</button>'); $("rt").onclick = boot; }
-function entrou(me) { ME = me; F.s = all() ? "" : ME.setor_id; DATA = []; UPDT = null; TAB = "res"; shell(); }
+function carregarSetores() { return api("GET", "/api/admin/setores").then(function (l) { S = l; }); }
+function setOpts() { return S.map(function (s) { return [s.id, s.nome + (s.ativo === false ? " (desativado)" : "")]; }); }
+function entrou(me) {
+  ME = me; DATA = []; UPDT = null; TAB = "res";
+  carregarSetores().then(function () { F.s = all() ? "" : ME.setor_id; shell(); }).catch(function (e) { if (!falhou(e)) erroTela(e); });
+}
 
 function loginView(aviso) {
   draw('<h1>Área restrita</h1><p class="mut">Acesso somente para a equipe autorizada: gerente, administradores de setor e visualizadores.</p><form id="f" novalidate>' + fld("em", "E-mail", "email", 'autocomplete="username" required') + fld("pw", "Senha", "password", 'autocomplete="current-password" required') + '<label class="sh"><input type="checkbox" id="sp"> Mostrar senha</label><p class="err" id="er" role="alert">' + esc(aviso || "") + '</p><button class="cta" type="submit">Entrar</button></form>');
@@ -100,32 +104,34 @@ function loginView(aviso) {
     if (!em || !pw) { er.textContent = "Preencha e-mail e senha."; return; }
     er.textContent = "Entrando...";
     api("POST", "/api/login", { email: em, senha: pw })
-      .then(function (me) { return S.length ? me : api("GET", "/api/perguntas").then(function (j) { S = j.setores; return me; }); })
+      .then(function (me) { return me; })
       .then(entrou)
       .catch(function (x) { er.textContent = x.message; });
   };
 }
 
 function shell() {
-  var tabs = [["res", "Resultados"]].concat(isV() ? [] : [["ctt", "Contatos"], ["per", "Perguntas"], ["eq", "Equipe"]]);
+  var tabs = [["res", "Resultados"]].concat(isV() ? [] : [["ctt", "Contatos"], ["per", "Perguntas"]].concat(isG() ? [["set", "Setores"]] : []).concat([["eq", "Equipe"]]));
   draw('<div class="dtop"><p class="who"><strong>' + esc(ME.nome) + '</strong><br><span class="mut">' + esc(papelTxt(ME)) + '</span></p><span class="sp"></span>' + (isG() ? '<a class="ghost" href="/tv.html" target="_blank" rel="noopener">TV Wall</a>' : "") + '<button class="ghost" id="out">Sair</button></div><nav class="tabs" aria-label="Seções">' + tabs.map(function (t) { return '<button id="t-' + t[0] + '" data-t="' + t[0] + '">' + t[1] + "</button>"; }).join("") + '</nav><div id="tab"><p class="mut">Carregando…</p></div>');
   app.classList.add("wide");
-  $("out").onclick = function () { api("POST", "/api/logout").then(function () { ME = null; DATA = []; UPDT = null; loginView(); }, function () { loginView(); }); };
+  $("out").onclick = function () { pararVivo(); api("POST", "/api/logout").then(function () { ME = null; DATA = []; UPDT = null; loginView(); }, function () { loginView(); }); };
   document.querySelectorAll(".tabs button").forEach(function (b) { b.onclick = function () { setTab(b.dataset.t); }; });
   loadData(function () { updBadge(); setTab(TAB); });
 }
 function setTab(t) {
   TAB = t;
+  pararVivo();
   document.querySelectorAll(".tabs button").forEach(function (b) { if (b.dataset.t === t) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
-  ({ res: viewRes, ctt: viewCtt, per: viewPer, eq: viewEq })[t]();
+  ({ res: viewRes, ctt: viewCtt, per: viewPer, set: viewSet, eq: viewEq })[t]();
+  if (t === "res") iniciarVivo();
 }
 
 /* ---------- Resultados ---------- */
 function exportUrl() { var q = ["p=" + F.p]; if (F.s) q.push("s=" + F.s); if (F.t) q.push("t=" + encodeURIComponent(F.t)); if (F.u) q.push("u=" + encodeURIComponent(F.u)); return "/api/admin/export.xlsx?" + q.join("&"); }
 function viewRes() {
-  $("tab").innerHTML = '<div class="dtop"><p class="mut" id="upd" style="margin:0"></p><span class="sp"></span><button class="ghost" id="rf">Atualizar</button><button class="ghost" id="pt">Imprimir</button><a class="ghost" id="ex" href="#">Exportar Excel</a></div><p class="prn" id="prn"></p><div class="filters">' +
+  $("tab").innerHTML = '<div class="dtop"><p class="mut" id="upd" style="margin:0"></p><span class="sp"></span><button class="ghost" id="rf">Atualizar</button><button class="ghost" id="pt">Imprimir</button><a class="ghost" id="ex" href="#">Exportar Excel</a></div><p class="prn" id="prn"></p><div id="vivo"></div><div class="filters">' +
     sel("fp", "Período", [["7", "Últimos 7 dias"], ["30", "Últimos 30 dias"], ["90", "Últimos 90 dias"], ["all", "Todo o período"]], F.p) +
-    (all() ? sel("fs", "Setor", [["", "Todos os setores"]].concat(S.map(function (s) { return [s.id, s.nome]; })), F.s) : "") +
+    (all() ? sel("fs", "Setor", [["", "Todos os setores"]].concat(setOpts()), F.s) : "") +
     sel("ft", "Turno", [["", "Todos"], ["Dia", "Dia"], ["Noite", "Noite"]], F.t) + sel("fu", "Tipo de atendimento", [["", "Todos"], ["SUS", "SUS"], ["Plano de Saúde", "Plano de Saúde"], ["Particular", "Particular"]], F.u) + '</div><div id="dbody"></div>';
   $("rf").onclick = function () { $("dbody").innerHTML = '<p class="mut">Atualizando…</p>'; loadData(function () { updBadge(); updRes(); }); };
   $("pt").onclick = function () { window.print(); };
@@ -135,9 +141,61 @@ function viewRes() {
 }
 function updRes() {
   var rows = filt(), pl = { 7: "últimos 7 dias", 30: "últimos 30 dias", 90: "últimos 90 dias", all: "todo o período" };
-  $("dbody").innerHTML = body(rows);
+  $("dbody").innerHTML = body(rows) + (rows.length ? '<div id="rpq"></div>' : "");
+  if (rows.length) carregarRPQ();
   $("upd").textContent = UPDT ? "Atualizado às " + UPDT.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) + (DATA.length >= 5000 ? " (mostrando as 5000 mais recentes)" : "") : "";
   $("prn").textContent = "Fundação Hospitalar Dr. Oswaldo Diesel - Avaliação do atendimento. Período: " + pl[F.p] + ". Gerado em " + new Date().toLocaleString("pt-BR") + ".";
+}
+
+
+
+/* ---------- Resultado por pergunta (período e setor do filtro) ---------- */
+var RPQ_ABERTO = false;
+var TIPO_TXT = { escala: "Nota (1 a 5)", nps: "Recomendação (1 a 10)", positivos: "O que foi bom", negativos: "O que melhorar" };
+function carregarRPQ() {
+  api("GET", "/api/admin/resultado-perguntas?p=" + encodeURIComponent(F.p) + (all() && F.s ? "&s=" + encodeURIComponent(F.s) : "")).then(function (j) {
+    var el = $("rpq"); if (!el) return;
+    var ultimo = null, linhas = j.itens.map(function (x) {
+      var cab = x.setor !== ultimo ? '<tr class="grp"><td colspan="4"><strong>' + esc(sname(x.setor)) + "</strong></td></tr>" : ""; ultimo = x.setor;
+      var res = x.tipo === "escala" ? "<b>" + fmt1(x.media) + "</b>/5 · " + x.satisfeitos + "% satisfeitos"
+        : x.tipo === "nps" ? "<b>" + fmt1(x.media) + "</b>/10 · NPS " + x.nps
+        : (x.opcoes.length ? esc(x.opcoes.map(function (o) { return o[0] + " (" + o[1] + ")"; }).join(", ")) : "<em>sem escolhas</em>");
+      return cab + "<tr><td>" + esc(x.texto) + '</td><td class="mut">' + TIPO_TXT[x.tipo] + "</td><td>" + x.total + "</td><td>" + res + "</td></tr>";
+    }).join("");
+    el.innerHTML = '<details class="pnl rpq"' + (RPQ_ABERTO ? " open" : "") + '><summary><h3>Resultado por pergunta</h3></summary><p class="mut" style="margin:8px 0">Mostra cada pergunta, inclusive as que você adicionou. Respeita o período e o setor escolhidos acima. Perguntas excluídas aparecem enquanto houver respostas no período.</p><div class="tbl-wrap"><table class="tbl"><caption class="sr">Resultado por pergunta</caption><thead><tr><th>Pergunta</th><th>Tipo</th><th>Respostas</th><th>Resultado</th></tr></thead><tbody>' + (linhas || '<tr><td colspan="4" class="mut">Sem respostas no período.</td></tr>') + "</tbody></table></div></details>";
+    el.querySelector("details").ontoggle = function () { RPQ_ABERTO = this.open; };
+  }).catch(function (e) { falhou(e); });
+}
+
+/* ---------- Ao vivo: respostas já gravadas, mesmo de quem ainda não terminou ---------- */
+var VIVO = null;
+function pararVivo() { if (VIVO) { clearInterval(VIVO); VIVO = null; } }
+function iniciarVivo() { pararVivo(); carregarVivo(); VIVO = setInterval(function () { if (!document.hidden) carregarVivo(); }, 8000); }
+function ha(seg) { return seg < 60 ? "agora" : seg < 3600 ? "há " + Math.floor(seg / 60) + " min" : seg < 86400 ? "há " + Math.floor(seg / 3600) + " h" : "há " + Math.floor(seg / 86400) + " d"; }
+function resumoResp(rs) {
+  return rs.map(function (r) {
+    if (r.tipo === "escala") return '<span class="rsp" title="' + esc(r.texto) + '">P' + r.ordem + ": <b>" + r.n + "</b>/5</span>";
+    if (r.tipo === "nps") return '<span class="rsp" title="' + esc(r.texto) + '">Recomenda: <b>' + r.n + "</b>/10</span>";
+    var v = (r.v || []).filter(function (x) { return !none(x) || r.tipo === "negativos"; });
+    return '<span class="rsp" title="' + esc(r.texto) + '">' + (r.tipo === "positivos" ? "Bom" : "Melhorar") + ": " + (v.length ? esc(v.join(", ")) : "<em>nenhum</em>") + "</span>";
+  }).join("");
+}
+function paintVivo(j) {
+  var el = $("vivo"); if (!el) return;
+  var it = j.itens, ag = it.filter(function (x) { return x.ao_vivo; }), ab = it.length - ag.length;
+  if (!it.length) { el.innerHTML = '<section class="pnl vivo"><h3><i class="dot off" aria-hidden="true"></i>Ao vivo</h3><p class="mut" style="margin:0">Ninguém está respondendo agora. Cada resposta aparece aqui no instante em que o paciente avança, mesmo que ele não termine o formulário.</p></section>'; return; }
+  var linhas = it.slice(0, 12).map(function (x) {
+    return "<tr><td>" + esc(sname(x.setor)) + '</td><td>' + (x.ao_vivo ? '<span class="bdg live">Respondendo agora</span>' : '<span class="bdg">Não terminou</span>') + '<br><span class="mut">' + ha(x.ha_seg) + '</span></td><td><span class="prog" role="img" aria-label="' + x.respondidas + " de " + x.total + ' perguntas respondidas">' + (function () { var h = ""; for (var i = 0; i < x.total; i++) h += "<i" + (i < x.respondidas ? ' class="on"' : "") + "></i>"; return h; })() + "</span> " + x.respondidas + "/" + x.total + "</td><td>" + resumoResp(x.respostas) + "</td></tr>";
+  }).join("");
+  el.innerHTML = '<section class="pnl vivo"><h3><i class="dot' + (ag.length ? "" : " off") + '" aria-hidden="true"></i>Ao vivo: <span>' + ag.length + " respondendo agora</span>, <span>" + ab + ' não terminaram</span> <small class="mut">(últimos 7 dias)</small></h3><p class="mut" style="margin:0 0 8px">Cada resposta é gravada no instante em que o paciente avança. Estas avaliações ainda não entram nos indicadores abaixo, que contam só as enviadas. Atualiza sozinho a cada 8 segundos.</p><div class="tbl-wrap"><table class="tbl"><caption class="sr">Avaliações em andamento</caption><thead><tr><th>Setor</th><th>Situação</th><th>Progresso</th><th>Respostas até agora</th></tr></thead><tbody>' + linhas + "</tbody></table></div>" + (it.length > 12 ? '<p class="mut" style="margin:8px 0 0">Mostrando as 12 mais recentes de ' + it.length + ".</p>" : "") + "</section>";
+}
+function carregarVivo() {
+  api("GET", "/api/admin/andamento").then(function (j) {
+    if (TAB !== "res") return;
+    paintVivo(j);
+    // Alguém terminou uma avaliação: atualiza os indicadores sozinho (sem mexer nos filtros)
+    if (DATA.length < 5000 && j.concluidas !== DATA.length) loadData(function () { updBadge(); if (TAB === "res") updRes(); });
+  }).catch(function (e) { if (falhou(e)) pararVivo(); });
 }
 
 /* ---------- Contatos (telefones de avaliações abaixo da média) ---------- */
@@ -145,7 +203,7 @@ function viewCtt() {
   var rows = DATA.filter(function (r) { return r.telefone && (!CT.st || r.contato_status === CT.st) && (!CT.s || r.setor === CT.s); });
   $("tab").innerHTML = '<p class="mut">Pessoas que deram nota abaixo da média e autorizaram o contato. Ligue para entender o que houve e registre o resultado. Use o telefone somente para este fim.</p><div class="filters">' +
     sel("cs", "Situação", [["", "Todas"], ["pendente", "Pendentes"], ["contatado", "Contatadas"], ["resolvido", "Resolvidas"]], CT.st) +
-    (all() ? sel("cx", "Setor", [["", "Todos os setores"]].concat(S.map(function (s) { return [s.id, s.nome]; })), CT.s) : "") + '</div><div class="cards">' +
+    (all() ? sel("cx", "Setor", [["", "Todos os setores"]].concat(setOpts()), CT.s) : "") + '</div><div class="cards">' +
     (rows.length ? rows.map(function (r) {
       var neg = r.neg.filter(function (x) { return !none(x); });
       return '<article class="pnl" data-id="' + r.id + '"><h3>' + esc(sname(r.setor)) + ' <span class="bdg" style="margin-left:6px">' + STL[r.contato_status] + '</span></h3><p class="mut">Atendimento em ' + fmtData(r.data_atendimento) + " · " + esc(r.turno) + " · " + esc(r.respondente) + " · " + esc(r.tipo_atendimento) + "</p><p>Nota média: <strong>" + (r.nota_media == null ? "-" : fmt1(r.nota_media) + "/5") + "</strong> · Recomendação: <strong>" + r.nps + "/10</strong></p>" + (neg.length ? "<p>Pontos a melhorar: " + esc(neg.join(", ")) + "</p>" : "") +
@@ -170,32 +228,100 @@ function viewCtt() {
 
 /* ---------- Perguntas (gerente: todos os setores; administrador: o seu setor) ---------- */
 var TIPOS = [["escala", "Nota de satisfação (5 níveis)"], ["positivos", "O que foi bom (escolha várias)"], ["negativos", "O que pode melhorar (escolha várias)"]];
+var QL = [], QREM = [], MAXQ = 30;
 function viewPer() {
   var ss = mySet(); if (!QS || !ss.some(function (s) { return s.id === QS; })) QS = ss[0].id;
-  $("tab").innerHTML = '<p class="mut">Cada setor tem até 5 perguntas. A <strong>3ª pergunta</strong> é sempre a recomendação de 1 a 10 com carinhas (só o texto pode mudar). As mudanças valem para as próximas avaliações; as respostas antigas guardam o texto da época.</p>' +
-    (all() ? '<div class="filters">' + sel("qs", "Setor", S.map(function (s) { return [s.id, s.nome]; }), QS) + "</div>" : "<h2>" + esc(sname(QS)) + "</h2>") + '<div id="qed"><p class="mut">Carregando…</p></div>';
+  $("tab").innerHTML = '<p class="mut">Cada setor pode ter até ' + MAXQ + ' perguntas. Adicione, exclua e mude a ordem com os botões de cada pergunta e clique em <strong>Salvar alterações</strong> no fim. A pergunta de <strong>recomendação de 1 a 10</strong> é obrigatória em todo setor: dá para mudar o texto e a posição, mas não excluir. Perguntas de nota são obrigatórias para o paciente; as de escolha são opcionais. Formulários curtos (5 a 8 perguntas) costumam ter mais respostas. As mudanças valem para as próximas avaliações; as respostas antigas guardam o texto da época.</p>' +
+    (all() ? '<div class="filters">' + sel("qs", "Setor", setOpts(), QS) + "</div>" : "<h2>" + esc(sname(QS)) + "</h2>") + '<div id="qed"><p class="mut">Carregando…</p></div>';
   if ($("qs")) $("qs").onchange = function () { QS = this.value; loadQ(); };
   loadQ();
 }
-function loadQ() {
+function loadQ(depois) {
   api("GET", "/api/admin/perguntas/" + QS).then(function (qs) {
-    $("qed").innerHTML = qs.map(function (q) {
-      var u = q.ordem === 3, chips = q.tipo === "positivos" || q.tipo === "negativos";
-      return '<fieldset class="pnl qe" data-id="' + q.id + '" data-o="' + q.ordem + '" style="margin-bottom:12px"><legend><strong>Pergunta ' + q.ordem + (u ? " (recomendação de 1 a 10)" : "") + '</strong></legend><div class="fld"><label for="qt' + q.id + '">Texto da pergunta</label><input id="qt' + q.id + '" class="qt" maxlength="160" value="' + esc(q.texto) + '"></div>' +
-        (u ? "" : '<div class="fld">' + sel("qk" + q.id, "Tipo de resposta", TIPOS, q.tipo) + '</div><div class="fld qo-w"' + (chips ? "" : " hidden") + '><label for="qo' + q.id + '">Opções (uma por linha, de 2 a 10)</label><textarea id="qo' + q.id + '" class="qo" rows="5">' + esc((q.opcoes || []).join("\n")) + '</textarea></div><label class="sh"><input type="checkbox" class="qa"' + (q.ativa ? " checked" : "") + "> Mostrar esta pergunta na pesquisa</label>") + "</fieldset>";
-    }).join("") + '<button class="btn" id="qsave">Salvar alterações</button><p class="msg" id="qmsg" role="status"></p>';
-    document.querySelectorAll(".qe select").forEach(function (s) { s.onchange = function () { var w = s.closest(".qe").querySelector(".qo-w"); w.hidden = !(s.value === "positivos" || s.value === "negativos"); }; });
-    $("qsave").onclick = function () {
-      var out = [], msg = $("qmsg");
-      document.querySelectorAll(".qe").forEach(function (f) {
-        var u = f.dataset.o === "3", k = u ? "nps" : f.querySelector("select").value, o = f.querySelector(".qo");
-        out.push({ id: +f.dataset.id, texto: f.querySelector(".qt").value, tipo: k, opcoes: (k === "positivos" || k === "negativos") && o ? o.value.split("\n").map(function (x) { return x.trim(); }).filter(Boolean) : null, ativa: u ? true : f.querySelector(".qa").checked });
-      });
-      $("qsave").disabled = true; msg.className = "msg"; msg.textContent = "Salvando...";
-      api("PUT", "/api/admin/perguntas/" + QS, { perguntas: out }).then(function () { msg.className = "msg ok"; msg.textContent = "Perguntas salvas. Já valem para as próximas avaliações."; $("qsave").disabled = false; })
-        .catch(function (e) { if (falhou(e)) return; msg.textContent = e.message; $("qsave").disabled = false; });
-    };
+    QL = qs.map(function (q) { return { id: q.id, texto: q.texto, tipo: q.tipo, opcoesTxt: (q.opcoes || []).join("\n"), ativa: q.ativa }; });
+    QREM = []; drawQ(); if (depois) depois();
   }).catch(function (e) { if (!falhou(e)) $("qed").innerHTML = '<div class="note">' + esc(e.message) + "</div>"; });
+}
+function qmsg(t, ok) { var m = $("qmsg"); if (m) { m.className = "msg" + (ok ? " ok" : ""); m.textContent = t; } }
+function drawQ() {
+  var n = QL.length;
+  $("qed").innerHTML = QL.map(function (q, i) {
+    var nps = q.tipo === "nps", ch = q.tipo === "positivos" || q.tipo === "negativos";
+    return '<fieldset class="pnl qe" data-i="' + i + '" style="margin-bottom:12px"><legend><strong>Pergunta ' + (i + 1) + (nps ? " (recomendação de 1 a 10)" : "") + (q.id ? "" : " (nova)") + '</strong></legend>' +
+      '<div class="row qtools"><button type="button" class="ghost" data-a="up"' + (i === 0 ? " disabled" : "") + ' aria-label="Subir a pergunta ' + (i + 1) + '">↑ Subir</button><button type="button" class="ghost" data-a="down"' + (i === n - 1 ? " disabled" : "") + ' aria-label="Descer a pergunta ' + (i + 1) + '">↓ Descer</button>' + (nps ? "" : '<button type="button" class="ghost danger" data-a="del" aria-label="Excluir a pergunta ' + (i + 1) + '">Excluir</button>') + "</div>" +
+      '<div class="fld"><label for="qt' + i + '">Texto da pergunta</label><input id="qt' + i + '" class="qt" maxlength="160" value="' + esc(q.texto) + '"></div>' +
+      (nps ? '<p class="mut" style="margin:0">Carinhas de 1 a 10. Sempre presente, não pode ser desativada.</p>'
+        : '<div class="fld">' + sel("qk" + i, "Tipo de resposta", TIPOS, q.tipo) + '</div><div class="fld qo-w"' + (ch ? "" : " hidden") + '><label for="qo' + i + '">Opções (uma por linha, de 2 a 10)</label><textarea id="qo' + i + '" class="qo" rows="5">' + esc(q.opcoesTxt) + '</textarea></div><label class="sh"><input type="checkbox" class="qa"' + (q.ativa ? " checked" : "") + "> Mostrar esta pergunta na pesquisa</label>") + "</fieldset>";
+  }).join("") + '<section class="pnl qadd"><h3>Adicionar pergunta</h3><div class="row" style="align-items:end">' + sel("qnt", "Tipo da nova pergunta", TIPOS, "escala") + '<button type="button" class="btn o" id="qadd"' + (n >= MAXQ ? " disabled" : "") + '>+ Adicionar</button></div><p class="mut" style="margin:8px 0 0">' + n + " de " + MAXQ + ' perguntas.</p></section><div class="row"><button class="btn" id="qsave">Salvar alterações</button></div><p class="msg" id="qmsg" role="status"></p>';
+  var box = $("qed");
+  box.oninput = function (e) {
+    var f = e.target.closest(".qe"); if (!f) return; var q = QL[+f.dataset.i];
+    if (e.target.classList.contains("qt")) q.texto = e.target.value; else if (e.target.classList.contains("qo")) q.opcoesTxt = e.target.value;
+  };
+  box.onchange = function (e) {
+    var f = e.target.closest(".qe"); if (!f) return; var q = QL[+f.dataset.i];
+    if (e.target.tagName === "SELECT") { q.tipo = e.target.value; f.querySelector(".qo-w").hidden = !(q.tipo === "positivos" || q.tipo === "negativos"); }
+    else if (e.target.classList.contains("qa")) q.ativa = e.target.checked;
+  };
+  box.onclick = function (e) {
+    var b = e.target.closest("button"); if (!b || b.disabled) return;
+    if (b.id === "qadd") {
+      if (QL.length >= MAXQ) return;
+      var t = $("qnt").value; QL.push({ id: null, texto: "", tipo: t, opcoesTxt: t === "escala" ? "" : "", ativa: true }); drawQ();
+      var ni = $("qt" + (QL.length - 1)); if (ni) ni.focus(); return;
+    }
+    if (b.id === "qsave") return salvarQ();
+    var f = b.closest(".qe"); if (!f) return; var i = +f.dataset.i, a = b.dataset.a;
+    if (a === "up" && i > 0) { var x = QL[i]; QL[i] = QL[i - 1]; QL[i - 1] = x; drawQ(); }
+    else if (a === "down" && i < QL.length - 1) { var y = QL[i]; QL[i] = QL[i + 1]; QL[i + 1] = y; drawQ(); }
+    else if (a === "del") {
+      if (!window.confirm("Excluir esta pergunta? As respostas que ela já recebeu continuam guardadas nos resultados.")) return;
+      if (QL[i].id) QREM.push(QL[i].id);
+      QL.splice(i, 1); drawQ();
+    }
+  };
+}
+function salvarQ() {
+  var out = QL.map(function (q) {
+    var ch = q.tipo === "positivos" || q.tipo === "negativos";
+    return { id: q.id || undefined, texto: q.texto, tipo: q.tipo, opcoes: ch ? q.opcoesTxt.split("\n").map(function (x) { return x.trim(); }).filter(Boolean) : null, ativa: q.tipo === "nps" ? true : q.ativa };
+  }).concat(QREM.map(function (id) { return { id: id, remover: true }; }));
+  $("qsave").disabled = true; qmsg("Salvando...");
+  api("PUT", "/api/admin/perguntas/" + QS, { perguntas: out })
+    .then(function () { loadQ(function () { qmsg("Perguntas salvas. Já valem para as próximas avaliações.", true); }); carregarSetores().catch(function () {}); })
+    .catch(function (e) { if (falhou(e)) return; qmsg(e.message); if ($("qsave")) $("qsave").disabled = false; });
+}
+
+/* ---------- Setores (só o gerente): criar, renomear, ordenar, ativar e desativar ---------- */
+function viewSet() {
+  $("tab").innerHTML = '<p class="mut">Cadastre os departamentos do hospital. Cada setor novo nasce com 5 perguntas padrão (você ou o administrador do setor edita depois) e ganha o seu próprio link da pesquisa, que pode virar QR Code. Depois de criar, cadastre o administrador do setor na aba <strong>Equipe</strong>. Um setor <strong>desativado</strong> some da pesquisa e da TV, mas o histórico de avaliações fica guardado.</p>' +
+    '<section class="pnl" style="margin-bottom:14px"><h3>Novo setor</h3><form id="sf" novalidate class="cards" style="align-items:end">' + fld("sn", "Nome do setor", "text", 'maxlength="60" autocomplete="off" required') + '<div class="fld"><button class="btn" type="submit">Adicionar setor</button></div></form><p class="msg" id="smsg" role="status"></p></section><div id="slist"></div>';
+  $("sf").onsubmit = function (e) {
+    e.preventDefault(); var m = $("smsg"); m.className = "msg"; m.textContent = "Criando...";
+    api("POST", "/api/admin/setores", { nome: $("sn").value }).then(function (j) {
+      m.className = "msg ok"; m.textContent = "Setor criado: " + j.nome + ". Link da pesquisa: " + location.origin + "/?setor=" + j.id; $("sn").value = "";
+      return carregarSetores().then(drawSet);
+    }).catch(function (x) { if (!falhou(x)) m.textContent = x.message; });
+  };
+  carregarSetores().then(drawSet).catch(function (e) { if (!falhou(e)) $("slist").innerHTML = '<div class="note">' + esc(e.message) + "</div>"; });
+}
+function drawSet() {
+  var el = $("slist"); if (!el) return;
+  el.innerHTML = '<div class="tbl-wrap"><table class="tbl"><caption class="sr">Setores do hospital</caption><thead><tr><th>Setor</th><th>Situação</th><th>Perguntas</th><th>Avaliações</th><th>Link da pesquisa</th><th>Ações</th></tr></thead><tbody>' +
+    S.map(function (s, i) {
+      return '<tr data-id="' + esc(s.id) + '"><td><strong>' + esc(s.nome) + "</strong></td><td>" + (s.ativo ? '<span class="bdg live">Ativo</span>' : '<span class="bdg">Desativado</span>') + "</td><td>" + s.perguntas + "</td><td>" + s.avaliacoes + '</td><td class="slink"><code>/?setor=' + esc(s.id) + '</code> <button class="ghost" data-a="cp">Copiar link</button></td><td><div class="row">' +
+        '<button class="ghost" data-a="up"' + (i === 0 ? " disabled" : "") + ' aria-label="Subir ' + esc(s.nome) + '">↑</button><button class="ghost" data-a="down"' + (i === S.length - 1 ? " disabled" : "") + ' aria-label="Descer ' + esc(s.nome) + '">↓</button>' +
+        '<button class="ghost" data-a="rn">Renomear</button><button class="ghost" data-a="pq">Perguntas</button><button class="btn o" data-a="tg">' + (s.ativo ? "Desativar" : "Ativar") + "</button></div></td></tr>";
+    }).join("") + "</tbody></table></div>";
+  el.onclick = function (e) {
+    var b = e.target.closest("button"); if (!b) return; var tr = b.closest("tr"), id = tr.dataset.id, a = b.dataset.a, s = S.filter(function (x) { return x.id === id; })[0];
+    function patch(corpo) { api("PATCH", "/api/admin/setores/" + id, corpo).then(carregarSetores).then(drawSet).catch(function (x) { if (!falhou(x)) { var m = $("smsg"); m.className = "msg"; m.textContent = x.message; window.scrollTo(0, 0); } }); }
+    if (a === "up") patch({ mover: "cima" }); else if (a === "down") patch({ mover: "baixo" });
+    else if (a === "rn") { var n = window.prompt("Novo nome do setor:", s.nome); if (n && n.trim() !== s.nome) patch({ nome: n }); }
+    else if (a === "tg") { if (s.ativo && !window.confirm("Desativar " + s.nome + "? Ele some da pesquisa e da TV. O histórico continua guardado.")) return; patch({ ativo: !s.ativo }); }
+    else if (a === "pq") { QS = id; setTab("per"); }
+    else if (a === "cp") { var url = location.origin + "/?setor=" + id; try { navigator.clipboard.writeText(url).then(function () { b.textContent = "Copiado"; }, function () { window.prompt("Copie o link:", url); }); } catch (x) { window.prompt("Copie o link:", url); } }
+  };
 }
 
 /* ---------- Equipe (gerente: todas as contas; administrador: visualizadores do seu setor) ---------- */
@@ -214,7 +340,7 @@ function viewEq() {
       var r = $("nr").value, w = $("nsw");
       if (!isG() || r === "gerente") { w.hidden = true; return; }
       w.hidden = false;
-      var o = (r === "visualizador" ? [["", "Todos os setores"]] : []).concat(S.map(function (s) { return [s.id, s.nome]; }));
+      var o = (r === "visualizador" ? [["", "Todos os setores"]] : []).concat(setOpts());
       $("ns").innerHTML = o.map(function (x) { return '<option value="' + esc(x[0]) + '">' + esc(x[1]) + "</option>"; }).join("");
     };
     $("nr").onchange = tg; tg();

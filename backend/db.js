@@ -23,9 +23,9 @@ function explicarErro(e) {
   const dicas = {
     ECONNREFUSED: 'O MySQL não está rodando ou a porta/host estão errados. Inicie o serviço do MySQL e confira DB_HOST e DB_PORT no .env.',
     ER_ACCESS_DENIED_ERROR: 'Usuário ou senha incorretos. Confira DB_USER e DB_PASSWORD no .env.',
-    ER_BAD_DB_ERROR: 'O banco não existe. Rode o arquivo database/schema.sql no MySQL Workbench e confira DB_NAME no .env.',
+    ER_BAD_DB_ERROR: 'O banco não existe. Rode o arquivo backend/database/schema.sql no MySQL Workbench e confira DB_NAME no .env.',
     ENOTFOUND: 'O endereço do servidor (DB_HOST) não foi encontrado.',
-    ER_NO_SUCH_TABLE: 'Falta criar as tabelas. Rode o arquivo database/schema.sql no MySQL Workbench.',
+    ER_NO_SUCH_TABLE: 'Falta criar as tabelas. Rode o arquivo backend/database/schema.sql no MySQL Workbench.',
     ETIMEDOUT: 'Tempo esgotado ao conectar. Confira DB_HOST, DB_PORT e o firewall.',
   };
   return dicas[e.code] || 'Erro inesperado ao falar com o MySQL.';

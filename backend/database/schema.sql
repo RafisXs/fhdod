@@ -1,7 +1,7 @@
 -- =====================================================================
 -- Avaliação do Atendimento - FHDOD (protótipo acadêmico)
 -- Banco: MySQL 8.0+   |   Execute no MySQL Workbench (raio ⚡) ou:
---   mysql -u root -p < database/schema.sql
+--   mysql -u root -p < backend/database/schema.sql
 -- Pode ser executado mais de uma vez sem apagar dados.
 -- =====================================================================
 
@@ -23,12 +23,15 @@ USE hospital_experiencia;
 --      site_oficial      = serviço apresentado no site oficial da FHDOD
 --      pesquisa_impressa = consta na pesquisa de satisfação impressa do hospital
 --      prototipo         = setor definido para o protótipo acadêmico
+--      cadastrado        = setor criado depois pelo gerente, no painel
+--    ativo: 0 = some da pesquisa e da TV, mas o histórico de avaliações é mantido
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS setores (
   id     VARCHAR(10)  NOT NULL,
   nome   VARCHAR(60)  NOT NULL,
   ordem  TINYINT      NOT NULL,
-  origem ENUM('site_oficial','pesquisa_impressa','prototipo') NOT NULL,
+  origem ENUM('site_oficial','pesquisa_impressa','prototipo','cadastrado') NOT NULL,
+  ativo  TINYINT(1)   NOT NULL DEFAULT 1,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB;
 
@@ -64,23 +67,25 @@ CREATE TABLE IF NOT EXISTS usuarios (
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
--- 3) PERGUNTAS: 5 posições fixas por setor (editáveis pelo gerente e pelo admin do setor)
---    posições 1, 2, 4 e 5: escala | positivos | negativos
---    posição 3: sempre "nps" (recomendação de 1 a 10 com carinhas), não pode ser desativada
+-- 3) PERGUNTAS: quantas o setor precisar (o painel limita em 30 por setor), na ordem escolhida
+--    tipos: escala (5 níveis) | positivos | negativos (escolha de várias opções) | nps
+--    nps = recomendação de 1 a 10 com carinhas: cada setor tem exatamente UMA, que não
+--    pode ser desativada nem excluída (só o texto e a posição mudam). Por padrão fica na 3ª posição.
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS perguntas (
   id       INT          NOT NULL AUTO_INCREMENT,
   setor_id VARCHAR(10)  NOT NULL,
-  ordem    TINYINT      NOT NULL,
+  ordem    SMALLINT     NOT NULL,
   texto    VARCHAR(160) NOT NULL,
   tipo     ENUM('escala','positivos','negativos','nps') NOT NULL,
   opcoes   JSON         NULL,
   ativa    TINYINT(1)   NOT NULL DEFAULT 1,
+  nps_setor VARCHAR(10) GENERATED ALWAYS AS (IF(tipo = 'nps', setor_id, NULL)) STORED,
   PRIMARY KEY (id),
   UNIQUE KEY uk_perguntas_setor_ordem (setor_id, ordem),
+  UNIQUE KEY uk_perguntas_um_nps (nps_setor),
   CONSTRAINT fk_perguntas_setor FOREIGN KEY (setor_id) REFERENCES setores (id),
-  CONSTRAINT ck_perguntas_ordem CHECK (ordem BETWEEN 1 AND 5),
-  CONSTRAINT ck_perguntas_nps   CHECK ((tipo = 'nps') = (ordem = 3)),
+  CONSTRAINT ck_perguntas_ordem CHECK (ordem BETWEEN 1 AND 1000),
   CONSTRAINT ck_perguntas_nps_ativa CHECK (tipo <> 'nps' OR ativa = 1)
 ) ENGINE=InnoDB;
 

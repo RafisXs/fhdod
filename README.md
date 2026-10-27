@@ -29,7 +29,7 @@ Sistema web para coletar a avaliação do atendimento por setor (pesquisa de sat
 
 **Pesquisa (pacientes e familiares, sem login) - `/`**
 
-- Escolha do setor e até 5 perguntas por setor: duas de nota (5 níveis), a **3ª pergunta é sempre a recomendação de 1 a 10 com carinhas**, seguida de uma de pontos positivos e uma de pontos a melhorar.
+- Escolha do setor e perguntas **sem limite fixo de 5** (até 30 por setor). O padrão de cada setor é: duas de nota (5 níveis), a **recomendação de 1 a 10 com carinhas na 3ª posição**, uma de pontos positivos e uma de pontos a melhorar. Cada setor tem exatamente uma pergunta de recomendação, que não pode ser excluída.
 - **Gravação em tempo real:** cada resposta é gravada no banco assim que o paciente responde (como rascunho). Os painéis e a TV só contam as avaliações enviadas. Se a internet falhar no meio do caminho, o envio final manda as respostas de novo.
 - Passo final: dia do atendimento, turno (Dia ou Noite), paciente ou familiar e tipo de atendimento (SUS, Plano de Saúde ou Particular).
 - Quando a nota fica abaixo da média, aparece um campo **opcional** de telefone, com autorização expressa de contato, para a gestão do setor ligar e entender o que houve.
@@ -40,7 +40,10 @@ Sistema web para coletar a avaliação do atendimento por setor (pesquisa de sat
 
 - Resultados: indicadores, gráficos, ranking por setor, filtros (período, setor, turno, tipo de atendimento), comparação com o período anterior, impressão e exportação em Excel.
 - Contatos: pessoas que deixaram o telefone, com situação (pendente, contatado, resolvido) e observações.
-- Perguntas: edição do texto, do tipo e das opções de cada pergunta, e ativação ou desativação. A 3ª pergunta (recomendação de 1 a 10) é sempre mantida, só o texto pode mudar.
+- **Ao vivo:** no topo de Resultados, um painel mostra quem está respondendo agora e quem não terminou, com as respostas já dadas (nota, recomendação, pontos positivos e a melhorar). Cada resposta aparece quando o paciente avança, e o painel se atualiza sozinho a cada 8 segundos. Esses rascunhos não entram nos indicadores, que contam só as avaliações enviadas. Quando alguém termina, os indicadores se atualizam sozinhos. Respeita o setor de cada perfil e nunca mostra telefone.
+- Perguntas: **adicionar, excluir, reordenar (subir e descer)**, editar texto, tipo e opções, e ativar ou desativar. A pergunta de recomendação (1 a 10) é protegida: dá para mudar o texto e a posição, não excluir. Perguntas excluídas não apagam as respostas já dadas.
+- **Setores (só o gerente):** criar setor novo (nasce com 5 perguntas padrão e o seu link da pesquisa para virar QR Code), renomear, mudar a ordem, ativar e desativar. Setor desativado some da pesquisa e da TV, mas o histórico fica. Não há exclusão definitiva.
+- **Resultado por pergunta:** em Resultados, nota média, NPS e opções mais escolhidas de cada pergunta, inclusive as novas.
 - Equipe: criação e desativação de contas, conforme o perfil.
 
 **TV Wall - `/tv.html`**
@@ -59,7 +62,8 @@ Sistema web para coletar a avaliação do atendimento por setor (pesquisa de sat
 | Alcance dos dados | Todos os setores | Somente o seu setor | O seu setor (ou todos, se criado sem setor) |
 | Ver resultados e exportar Excel | Sim | Sim | Sim |
 | Ver telefones e registrar contato | Sim | Sim (do seu setor) | **Nunca** |
-| Editar perguntas | Todos os setores | Somente o seu setor | Não |
+| Adicionar, excluir, reordenar e editar perguntas | Todos os setores | Somente o seu setor | Não |
+| Criar, renomear, ordenar e desativar setores | **Sim (só ele)** | Não | Não |
 | Equipe | Cria e gerencia todas as contas, **sendo o único que cria administradores** (1 por setor) e outros gerentes | Cria e gerencia apenas visualizadores do seu setor; não cria admins nem muda perfis | Não |
 | Atalho da TV Wall no painel | Sim | Não | Não |
 
@@ -85,22 +89,22 @@ Regras:
 
 ```
 .
-├── database/
-│   └── schema.sql             # Tabelas, restrições e dados iniciais (MySQL)
-├── public/                    # Frontend
+├── frontend/                  # Interface web (HTML, CSS, JavaScript e imagens)
 │   ├── index.html             # Pesquisa
 │   ├── admin.html             # Área restrita
 │   ├── tv.html                # TV Wall
 │   ├── css/  img/  js/
-├── server/
+├── backend/                   # API Express, banco e testes
 │   ├── index.js               # Servidor Express
 │   ├── db.js                  # Conexão com o MySQL (pool) e teste de conexão
 │   ├── lib/                   # Autenticação, validação de avaliações, utilidades
 │   ├── routes/                # public.js (pesquisa, login, TV) e admin.js (área restrita)
-│   └── scripts/criar-gerente.js, migrar.js
-├── tests/api.test.js          # Testes automatizados da API
+│   ├── scripts/               # Comandos de migração e criação do gerente
+│   ├── database/schema.sql    # Tabelas, restrições e dados iniciais (MySQL)
+│   └── tests/api.test.js      # Testes automatizados da API
+├── package.json               # Comandos para iniciar e testar o backend
 ├── .env.example               # Modelo das variáveis de ambiente
-└── package.json
+└── README.md
 ```
 
 ## Instalação
@@ -130,10 +134,10 @@ Pré-requisitos: **Node.js 18 ou superior** (com npm) e **MySQL Server 8.0 ou su
    cp .env.example .env          (Linux e macOS)
    ```
 
-4. Crie o banco e as tabelas. No **MySQL Workbench**: abra a conexão, menu *File > Open SQL Script*, escolha `database/schema.sql` e clique no raio (Execute). Ou pelo terminal:
+4. Crie o banco e as tabelas. No **MySQL Workbench**: abra a conexão, menu *File > Open SQL Script*, escolha `backend/database/schema.sql` e clique no raio (Execute). Ou pelo terminal:
 
    ```
-   mysql -u root -p < database/schema.sql
+   mysql -u root -p < backend/database/schema.sql
    ```
 
    O script pode ser executado mais de uma vez sem apagar dados.
@@ -170,7 +174,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 
 ## Atualizar um banco criado em versão anterior
 
-Se você já criou o banco com uma versão anterior, não precisa apagar nada: ao iniciar, o servidor atualiza sozinho (move a pergunta de recomendação para a 3ª posição e prepara a gravação em tempo real). Você também pode rodar manualmente:
+Se você já criou o banco com uma versão anterior, não precisa apagar nada: ao iniciar, o servidor atualiza sozinho (move a pergunta de recomendação para a 3ª posição, libera perguntas além de 5, prepara os setores ativáveis e a gravação em tempo real). Você também pode rodar manualmente:
 
 ```
 npm run migrar
@@ -210,13 +214,13 @@ O QR Code da pesquisa de satisfação não deve ser confundido com o QR Code de 
 
 ## Banco de dados
 
-Banco `hospital_experiencia`, definido em `database/schema.sql`.
+Banco `hospital_experiencia`, definido em `backend/database/schema.sql`.
 
 | Tabela | Finalidade |
 | --- | --- |
-| `setores` | Pontos de entrada da pesquisa. A coluna `origem` diz se o setor vem do site oficial, da pesquisa impressa ou foi definido para o protótipo. |
+| `setores` | Pontos de entrada da pesquisa. A coluna `origem` diz se o setor vem do site oficial, da pesquisa impressa, do protótipo ou se foi `cadastrado` pelo gerente. A coluna `ativo` esconde o setor da pesquisa sem apagar o histórico. |
 | `usuarios` | Contas da equipe: perfil (`gerente`, `admin`, `visualizador`) e setor. Uma chave única garante 1 administrador ativo por setor. |
-| `perguntas` | 5 posições por setor, editáveis. A posição 3 é sempre a recomendação de 1 a 10. |
+| `perguntas` | Quantas o setor precisar (o painel limita em 30), na ordem escolhida. Cada setor tem exatamente 1 do tipo `nps` (garantido pelo banco). |
 | `avaliacoes` | Uma linha por avaliação, anônima. Guarda turno, perfil de quem respondeu, tipo de atendimento, telefone (opcional) e situação do contato. |
 | `respostas` | Uma linha por pergunta respondida, com o texto da pergunta da época. |
 
@@ -241,6 +245,7 @@ Todas as respostas são JSON, exceto a exportação em Excel. Pedidos que altera
 | POST | `/api/login` | Entrar (limite de 10 tentativas a cada 15 minutos) |
 | POST | `/api/logout` | Sair |
 | GET | `/api/me` | Dados de quem está logado |
+| GET | `/api/admin/andamento` | (login) Avaliações em andamento e abandonadas, no alcance do perfil |
 | GET | `/api/tv` | Indicadores agregados da TV Wall |
 
 **Área restrita (exige login; o alcance depende do perfil)**
@@ -250,7 +255,10 @@ Todas as respostas são JSON, exceto a exportação em Excel. Pedidos que altera
 | GET | `/api/admin/avaliacoes` | Todos |
 | GET | `/api/admin/export.xlsx` | Todos |
 | PATCH | `/api/admin/avaliacoes/:id/contato` | Gerente, administrador |
-| GET, PUT | `/api/admin/perguntas/:setor` | Gerente, administrador |
+| GET, PUT | `/api/admin/perguntas/:setor` | Gerente, administrador (salva a lista inteira: novas, ordem, exclusões) |
+| GET | `/api/admin/setores` | Todos os perfis (lista com ativos e desativados) |
+| POST, PATCH | `/api/admin/setores`, `/api/admin/setores/:id` | Somente o gerente (criar, renomear, mover, ativar e desativar) |
+| GET | `/api/admin/resultado-perguntas` | Todos, dentro do alcance (nota, NPS e opções por pergunta) |
 | GET, POST | `/api/admin/usuarios` | Gerente, administrador |
 | PATCH | `/api/admin/usuarios/:id` | Gerente, administrador |
 
@@ -280,7 +288,7 @@ Linux e macOS:
 BASE_URL=http://localhost:3000 TEST_GERENTE_EMAIL=gerente@exemplo.com TEST_GERENTE_SENHA=sua-senha npm test
 ```
 
-Os 18 testes cobrem: conexão, perguntas, proteção CSRF, login, registro de avaliação, gravação em tempo real (rascunho), regras do telefone, validações, os três perfis (inclusive 1 administrador por setor), edição de perguntas, contatos, Excel, TV Wall e regras de segurança da equipe.
+Os 22 testes cobrem: conexão, perguntas, proteção CSRF, login, registro de avaliação, gravação em tempo real (rascunho), painel ao vivo, setores novos, perguntas além de 5 (adicionar, reordenar, excluir), regras do telefone, validações, os três perfis (inclusive 1 administrador por setor), edição de perguntas, contatos, Excel, TV Wall e regras de segurança da equipe.
 
 Também foi feito um teste de interface com navegador simulado (jsdom) cobrindo a pesquisa e as telas de gerente, administrador, visualizador e TV Wall. Esse teste não faz parte do repositório.
 
@@ -292,8 +300,8 @@ Verificação feita neste protótipo: API (16 de 16) e interface contra **MySQL 
 | --- | --- |
 | `ECONNREFUSED` | O MySQL não está rodando ou `DB_HOST` e `DB_PORT` estão errados. Inicie o serviço do MySQL. |
 | `ER_ACCESS_DENIED_ERROR` | Usuário ou senha do MySQL incorretos. Confira `DB_USER` e `DB_PASSWORD` no `.env`. |
-| `ER_BAD_DB_ERROR` | O banco não existe. Rode `database/schema.sql` e confira `DB_NAME`. |
-| `ER_NO_SUCH_TABLE` | Faltam as tabelas. Rode `database/schema.sql`. |
+| `ER_BAD_DB_ERROR` | O banco não existe. Rode `backend/database/schema.sql` e confira `DB_NAME`. |
+| `ER_NO_SUCH_TABLE` | Faltam as tabelas. Rode `backend/database/schema.sql`. |
 | `FALHA: a porta 3000 já está em uso` | O servidor já está rodando em outro terminal. Feche-o ou mude `PORT` no `.env`. |
 | `FALHA: defina JWT_SECRET no arquivo .env ...` | `JWT_SECRET` está vazio, curto demais ou igual ao exemplo. Gere um novo (comando na seção de variáveis de ambiente) e reinicie. |
 | `Muitas tentativas de login` | O limite de 10 tentativas em 15 minutos foi atingido. Aguarde ou reinicie o servidor em desenvolvimento. |

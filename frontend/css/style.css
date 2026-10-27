@@ -71,3 +71,27 @@ a.ghost{text-decoration:none}
 .who{margin:0}
 .proto{font-size:.82rem;color:var(--mut);margin:14px 0 0}
 @media print{.tabs{display:none!important}}
+
+/* Ao vivo: avaliações em andamento (respostas gravadas na hora) */
+.pnl.vivo{margin:12px 0}
+.pnl.vivo h3 small{font-weight:400;font-size:.8rem}
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;background:#16A34A;margin-right:8px;vertical-align:middle;animation:pulso 1.6s infinite}
+.dot.off{background:var(--mut);animation:none}
+@keyframes pulso{50%{opacity:.3}}
+.bdg.live{border-color:#16A34A;color:#0F7A38;background:rgba(22,163,74,.1)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .bdg.live{color:#6EE7A0}}
+.prog{display:inline-flex;gap:3px;vertical-align:middle}
+.prog i{width:14px;height:8px;border-radius:3px;background:var(--line)}
+.prog i.on{background:var(--pri)}
+.rsp{display:inline-block;margin:0 10px 4px 0;white-space:normal}
+.rsp b{font-variant-numeric:tabular-nums}
+@media print{.pnl.vivo{display:none}}
+
+/* Editor de perguntas e setores */
+.qtools{margin-bottom:10px}
+.ghost.danger{color:#B42318;border-color:#B42318}
+.qadd{margin-bottom:12px}
+tr.grp td{background:var(--sb);padding-top:10px}
+.rpq summary{cursor:pointer;list-style:revert}.rpq summary h3{display:inline;margin:0}
+.slink code{font-size:.82rem;overflow-wrap:anywhere}
+.slink .ghost{margin:4px 0 0}

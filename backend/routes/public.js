@@ -19,8 +19,8 @@ r.get('/saude', async (req, res) => {
 
 // Setores e perguntas ativas (a pesquisa monta as telas com isso)
 r.get('/perguntas', async (req, res) => {
-  const [setores] = await pool.query('SELECT id, nome FROM setores ORDER BY ordem');
-  const [perg] = await pool.query('SELECT id, setor_id, ordem, texto, tipo, opcoes FROM perguntas WHERE ativa = 1 ORDER BY setor_id, ordem');
+  const [setores] = await pool.query('SELECT id, nome FROM setores WHERE ativo = 1 ORDER BY ordem');
+  const [perg] = await pool.query('SELECT p.id, p.setor_id, p.ordem, p.texto, p.tipo, p.opcoes FROM perguntas p JOIN setores s ON s.id = p.setor_id WHERE p.ativa = 1 AND s.ativo = 1 ORDER BY p.setor_id, p.ordem');
   res.json({
     setores,
     limites: { abaixoMedia: ABAIXO_MEDIA, npsMaxDetrator: NPS_MAX_DETRATOR },
@@ -100,6 +100,7 @@ r.get('/tv', async (req, res) => {
     `SELECT st.id, st.nome, COUNT(a.id) AS respostas, AVG(a.nota_media) AS nota,
             SUM(a.nps >= 9) AS pro, SUM(a.nps <= 6) AS det
        FROM setores st LEFT JOIN avaliacoes a ON a.setor_id = st.id AND ${D30}
+      WHERE st.ativo = 1
       GROUP BY st.id, st.nome, st.ordem ORDER BY st.ordem`);
   const [serie] = await pool.query(
     `SELECT DATE_FORMAT(a.criado_em, '%Y-%m-%d') AS dia, COUNT(*) AS n FROM avaliacoes a

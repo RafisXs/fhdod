@@ -1,5 +1,6 @@
 // Atualiza um banco criado por uma versão anterior (pode rodar várias vezes sem estragar nada).
 //   1) a pergunta de recomendação (1 a 10 com carinhas) passa da posição 5 para a 3;
+//   1b) perguntas sem limite de 5 (uma recomendação por setor, em qualquer posição) e setores ativáveis;
 //   2) avaliações ganham "rascunho" (cada resposta é gravada na hora, antes de enviar).
 // Num banco novo (schema.sql atual) não há nada a fazer.
 const { NPS_ORDEM } = require('./util');
@@ -12,6 +13,10 @@ const temIndice = async (c, tabela, nome) => {
   const [r] = await c.query('SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1', [tabela, nome]);
   return r.length > 0;
 };
+const textoCheck = async (c, nome) => {
+  const [r] = await c.query('SELECT CHECK_CLAUSE AS t FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = ?', [nome]);
+  return r.length ? String(r[0].t) : null;
+};
 const temCheck = async (c, tabela, nome) => {
   const [r] = await c.query("SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? AND CONSTRAINT_TYPE = 'CHECK'", [tabela, nome]);
   return r.length > 0;
@@ -21,11 +26,12 @@ async function migrar(pool) {
   const feitos = [];
   const c = await pool.getConnection();
   try {
-    // ---- 1) Pergunta de recomendação na 3ª posição ----
-    const [[velha]] = await c.query("SELECT COUNT(*) AS n FROM perguntas WHERE tipo = 'nps' AND ordem <> ?", [NPS_ORDEM]);
-    if (velha.n > 0) {
-      if (await temCheck(c, 'perguntas', 'ck_perguntas_nps')) await c.query('ALTER TABLE perguntas DROP CHECK ck_perguntas_nps');
+    // ---- 1) Pergunta de recomendação na 3ª posição (versão antiga: estava na 5ª) ----
+    let clausulaNps = await textoCheck(c, 'ck_perguntas_nps');
+    if (clausulaNps && /`ordem`\s*=\s*5\)/.test(clausulaNps)) {
       if (await temCheck(c, 'perguntas', 'ck_perguntas_ordem')) await c.query('ALTER TABLE perguntas DROP CHECK ck_perguntas_ordem');
+      await c.query('ALTER TABLE perguntas DROP CHECK ck_perguntas_nps'); // o antigo exigia a recomendação na 5ª posição
+      clausulaNps = null;
       await c.beginTransaction();
       try {
         // Passa por valores temporários porque (setor, ordem) é único. A recomendação vira a 3ª e as
@@ -34,10 +40,25 @@ async function migrar(pool) {
         await c.query("UPDATE perguntas SET ordem = IF(tipo = 'nps', ?, ordem - 10 + 1) WHERE ordem > 10", [NPS_ORDEM]);
         await c.commit();
       } catch (e) { await c.rollback(); throw e; }
-      await c.query('ALTER TABLE perguntas ADD CONSTRAINT ck_perguntas_ordem CHECK (ordem BETWEEN 1 AND 5)');
-      await c.query(`ALTER TABLE perguntas ADD CONSTRAINT ck_perguntas_nps CHECK ((tipo = 'nps') = (ordem = ${Number(NPS_ORDEM)}))`);
       feitos.push('pergunta de recomendação movida para a posição 3');
     }
+
+    // ---- 1b) Perguntas sem limite de 5 e setores que o gerente pode criar ----
+    if (clausulaNps) await c.query('ALTER TABLE perguntas DROP CHECK ck_perguntas_nps'); // a posição deixa de ser fixa
+    const [[tp]] = await c.query("SELECT DATA_TYPE AS t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'perguntas' AND COLUMN_NAME = 'ordem'");
+    if (tp.t !== 'smallint') { await c.query('ALTER TABLE perguntas MODIFY ordem SMALLINT NOT NULL'); feitos.push('perguntas: sem limite de 5 por setor'); }
+    const clausulaOrdem = await textoCheck(c, 'ck_perguntas_ordem');
+    if (clausulaOrdem && !/1000/.test(clausulaOrdem)) await c.query('ALTER TABLE perguntas DROP CHECK ck_perguntas_ordem');
+    if (!(await temCheck(c, 'perguntas', 'ck_perguntas_ordem'))) await c.query('ALTER TABLE perguntas ADD CONSTRAINT ck_perguntas_ordem CHECK (ordem BETWEEN 1 AND 1000)');
+    if (!(await temColuna(c, 'perguntas', 'nps_setor'))) {
+      await c.query("ALTER TABLE perguntas ADD COLUMN nps_setor VARCHAR(10) GENERATED ALWAYS AS (IF(tipo = 'nps', setor_id, NULL)) STORED, ADD UNIQUE KEY uk_perguntas_um_nps (nps_setor)");
+    }
+    if (!(await temColuna(c, 'setores', 'ativo'))) {
+      await c.query('ALTER TABLE setores ADD COLUMN ativo TINYINT(1) NOT NULL DEFAULT 1');
+      feitos.push('setores: ativar e desativar');
+    }
+    const [[og]] = await c.query("SELECT COLUMN_TYPE AS t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'setores' AND COLUMN_NAME = 'origem'");
+    if (!/cadastrado/.test(og.t)) await c.query("ALTER TABLE setores MODIFY origem ENUM('site_oficial','pesquisa_impressa','prototipo','cadastrado') NOT NULL");
 
     // ---- 2) Rascunho: gravação de cada resposta na hora ----
     if (!(await temColuna(c, 'avaliacoes', 'status'))) {

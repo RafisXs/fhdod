@@ -17,7 +17,7 @@ function paint(j) {
   var ord = j.setores.slice().sort(function (a, b) { return (b.nota == null ? -1 : b.nota) - (a.nota == null ? -1 : a.nota); });
   var npsTom = j.nps == null ? "" : j.nps >= 50 ? "ok" : j.nps >= 0 ? "mid" : "bad";
   tv.innerHTML = k("Avaliações", j.total, "nos últimos 30 dias") + k("Hoje", j.hoje, "nas últimas 24 horas") + k("Nota média", j.nota == null ? "—" : f1(j.nota) + "/5", "perguntas de nota", tom(j.nota)) + k("NPS", j.nps == null ? "—" : j.nps, "recomendação, de -100 a 100", npsTom) + k("Satisfeitos", j.satisfeitos == null ? "—" : j.satisfeitos + "%", "notas 4 e 5", j.satisfeitos == null ? "" : j.satisfeitos >= 80 ? "ok" : j.satisfeitos >= 60 ? "mid" : "bad") +
-    '<section class="p rk"><h2>Nota média por setor (1 a 5)</h2><div class="rows">' + ord.map(function (s) {
+    '<section class="p rk"><h2>Nota média por setor (1 a 5)</h2><div class="rows' + (ord.length > 11 ? " mini" : "") + '">' + ord.map(function (s) {
       var t = tom(s.nota);
       return '<div class="hb ' + t + '"><span class="nm">' + esc(s.nome) + (t === "bad" ? '<span class="bdg">ATENÇÃO</span>' : "") + '</span><span class="tr"><i style="width:' + (s.nota == null ? 0 : Math.round(s.nota / 5 * 100)) + '%"></i></span><b>' + (s.nota == null ? "—" : f1(s.nota)) + "<small>" + (s.nota == null ? "sem resp." : s.respostas + " resp.") + "</small></b></div>";
     }).join("") + '</div></section><div class="col"><section class="p"><h2>Avaliações por dia (14 dias)</h2>' + serie(j.serie) + '</section><section class="p"><div class="ab"><b>' + j.abaixoMedia + '</b><span>avaliações abaixo da média no período.<br>A gestão do setor entra em contato quando o paciente deixa o telefone.</span></div></section></div>';

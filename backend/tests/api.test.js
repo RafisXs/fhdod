@@ -215,6 +215,38 @@ test('11b. Gravação em tempo real: cada resposta vai para o banco na hora e s�
   assert.equal((await req('POST', `/api/avaliacoes/${t}/concluir`, base)).status, 400);
 });
 
+test('11d. Painel ao vivo: a resposta aparece na hora, mesmo sem terminar, respeitando o setor do perfil', async () => {
+  const { json } = await req('GET', '/api/perguntas');
+  const qs = json.perguntas.filter((q) => q.setor_id === 'ob');
+  const t = (await req('POST', '/api/avaliacoes/iniciar', { setor: 'ob' })).json.token;
+  const qn = qs.find((q) => q.tipo === 'nps'), q1 = qs[0];
+  const vivo = async (cookie) => (await req('GET', '/api/admin/andamento', null, cookie)).json;
+  // clicou na 1ª resposta e avançou: já está no painel
+  await req('PUT', `/api/avaliacoes/${t}/resposta`, { p: q1.id, n: 2 });
+  let j = await vivo(gerente);
+  let it = j.itens.find((x) => x.respostas.some((r) => r.texto === q1.texto && r.n === 2) && x.setor === 'ob');
+  assert.ok(it, 'a 1ª resposta aparece no painel do gerente na hora');
+  assert.equal(it.ao_vivo, true);
+  assert.equal(it.respondidas, 1);
+  assert.ok(it.total >= 3);
+  // clicou na recomendação e avançou: a lista cresce
+  await req('PUT', `/api/avaliacoes/${t}/resposta`, { p: qn.id, n: 3 });
+  it = (await vivo(gerente)).itens.find((x) => x.id === it.id);
+  assert.equal(it.respondidas, 2);
+  assert.ok(it.respostas.some((r) => r.tipo === 'nps' && r.n === 3));
+  // setor: o administrador do Raio-X não enxerga o rascunho da Obstetrícia; o visualizador de todos enxerga
+  assert.ok(!(await vivo(adminRx)).itens.some((x) => x.setor === 'ob'), 'admin de outro setor não vê');
+  assert.ok((await vivo(visTodos)).itens.some((x) => x.id === it.id), 'visualizador sem setor vê');
+  assert.ok(!(await vivo(visRx)).itens.some((x) => x.setor === 'ob'), 'visualizador do Raio-X não vê outro setor');
+  assert.ok(!JSON.stringify(j).includes('telefone'), 'nunca traz telefone');
+  assert.equal((await req('GET', '/api/admin/andamento')).status, 401, 'exige login');
+  // rascunho sem nenhuma resposta não aparece
+  const vazio = (await req('POST', '/api/avaliacoes/iniciar', { setor: 'ob' })).json.token;
+  assert.ok(vazio);
+  const antes = (await vivo(gerente)).itens.length;
+  assert.equal(antes, (await vivo(gerente)).itens.length);
+});
+
 test('11c. Concluir reenvia as respostas (garantia se a internet falhou no meio) e o telefone só vale se a nota for baixa', async () => {
   const { json } = await req('GET', '/api/perguntas');
   const qs = json.perguntas.filter((q) => q.setor_id === 'tr');
@@ -225,6 +257,101 @@ test('11c. Concluir reenvia as respostas (garantia se a internet falhou no meio)
   assert.equal((await req('POST', `/api/avaliacoes/${t}/concluir`, { ...base, telefone: '51977776666', consentimento: true })).status, 201);
   const a = (await req('GET', '/api/admin/avaliacoes', null, gerente)).json.find((x) => x.setor === 'tr' && x.telefone === '51977776666');
   assert.ok(a && a.abaixo_media, 'nota baixa guarda o telefone para contato');
+});
+
+let novoSetor = null;
+test('11e. Gerente cria um setor novo; ninguém mais pode; o setor já nasce com as perguntas padrão', async () => {
+  const nome = `Fisioterapia ${unico}`.replace(/\d/g, '') .trim() || 'Fisioterapia';
+  const antes = (await req('GET', '/api/admin/setores', null, gerente)).json;
+  const nomeUnico = antes.some((x) => x.nome === 'Fisioterapia') ? 'Hemodiálise' : 'Fisioterapia';
+  assert.equal((await req('POST', '/api/admin/setores', { nome: nomeUnico }, adminRx)).status, 403, 'admin de setor não cria setor');
+  assert.equal((await req('POST', '/api/admin/setores', { nome: nomeUnico }, visRx)).status, 403, 'visualizador não cria setor');
+  assert.equal((await req('POST', '/api/admin/setores', { nome: 'x' }, gerente)).status, 400, 'nome curto');
+  const r = await req('POST', '/api/admin/setores', { nome: nomeUnico }, gerente);
+  if (r.status === 409) { novoSetor = antes.find((x) => x.nome === nomeUnico).id; } else { assert.equal(r.status, 201, JSON.stringify(r.json)); novoSetor = r.json.id; }
+  assert.match(novoSetor, /^[a-z]{2,10}$/);
+  assert.equal((await req('POST', '/api/admin/setores', { nome: nomeUnico }, gerente)).status, 409, 'nome repetido');
+  const pub = (await req('GET', '/api/perguntas')).json;
+  assert.ok(pub.setores.some((x) => x.id === novoSetor), 'o setor novo aparece na pesquisa');
+  const qs = pub.perguntas.filter((q) => q.setor_id === novoSetor);
+  assert.deepEqual(qs.map((q) => q.tipo), ['escala', 'escala', 'nps', 'positivos', 'negativos']);
+  const lista = (await req('GET', '/api/admin/setores', null, visRx)).json;
+  assert.ok(lista.some((x) => x.id === novoSetor && x.ativo === true && x.perguntas === 5), 'todos os perfis leem a lista de setores');
+});
+
+test('11f. Perguntas sem limite de 5: adicionar, reordenar, excluir; a recomendação é protegida', async () => {
+  assert.ok(novoSetor);
+  const admNovo = await criarUsuario(gerente, { nome: 'Admin do Setor Novo', email: `admin.novo.${unico}@teste.com`, senha: 'SenhaAdmin#9', papel: 'admin', setor_id: novoSetor });
+  assert.equal(admNovo.status, 201, JSON.stringify(admNovo.json));
+  const adm = await entrar(`admin.novo.${unico}@teste.com`, 'SenhaAdmin#9');
+  const atuais = (await req('GET', `/api/admin/perguntas/${novoSetor}`, null, adm)).json;
+  assert.equal(atuais.length, 5);
+  const velha = (q) => ({ id: q.id, texto: q.texto, tipo: q.tipo, opcoes: q.opcoes, ativa: q.ativa });
+  // adiciona 5 perguntas novas (total 10) e põe a recomendação em 1º lugar
+  const nps = atuais.find((q) => q.tipo === 'nps');
+  const novas = [1, 2, 3, 4, 5].map((i) => ({ texto: `Pergunta nova número ${i} do setor?`, tipo: 'escala' }));
+  novas[4] = { texto: 'Qual serviço você mais usou?', tipo: 'positivos', opcoes: ['Consulta', 'Exame', 'Retorno'] };
+  const corpo = [velha(nps), ...atuais.filter((q) => q.id !== nps.id).map(velha), ...novas];
+  const put = await req('PUT', `/api/admin/perguntas/${novoSetor}`, { perguntas: corpo }, adm);
+  assert.equal(put.status, 200, JSON.stringify(put.json));
+  let depois = (await req('GET', `/api/admin/perguntas/${novoSetor}`, null, adm)).json;
+  assert.equal(depois.length, 10, 'passou de 5 perguntas');
+  assert.deepEqual(depois.map((q) => q.ordem), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.equal(depois[0].tipo, 'nps', 'a recomendação foi para a 1ª posição');
+  assert.equal(depois[9].texto, 'Qual serviço você mais usou?');
+  // a pesquisa pública mostra todas, na ordem
+  const pub = (await req('GET', '/api/perguntas')).json.perguntas.filter((q) => q.setor_id === novoSetor);
+  assert.equal(pub.length, 10);
+  // proteções
+  const semNps = depois.filter((q) => q.tipo !== 'nps').map(velha);
+  assert.equal((await req('PUT', `/api/admin/perguntas/${novoSetor}`, { perguntas: [...semNps, { ...velha(nps), remover: true }] }, adm)).status, 400, 'não exclui a recomendação');
+  const desat = depois.map(velha); desat[0].ativa = false;
+  await req('PUT', `/api/admin/perguntas/${novoSetor}`, { perguntas: desat }, adm);
+  assert.equal((await req('GET', `/api/admin/perguntas/${novoSetor}`, null, adm)).json[0].ativa, true, 'a recomendação continua ativa');
+  assert.equal((await req('PUT', `/api/admin/perguntas/${novoSetor}`, { perguntas: depois.slice(0, 9).map(velha) }, adm)).status, 409, 'lista incompleta (tela desatualizada) é recusada');
+  assert.equal((await req('PUT', `/api/admin/perguntas/rx`, { perguntas: depois.map(velha) }, adm)).status, 403, 'admin não edita outro setor');
+  const muitas = [...depois.map(velha), ...Array.from({ length: 25 }, (_, i) => ({ texto: `Pergunta extra ${i} do setor?`, tipo: 'escala' }))];
+  assert.equal((await req('PUT', `/api/admin/perguntas/${novoSetor}`, { perguntas: muitas }, adm)).status, 400, 'limite de 30 por setor');
+  // exclui duas perguntas e confere a numeração
+  const excl = depois.map(velha); excl[2] = { ...excl[2], remover: true }; excl[3] = { ...excl[3], remover: true };
+  assert.equal((await req('PUT', `/api/admin/perguntas/${novoSetor}`, { perguntas: excl }, adm)).status, 200);
+  depois = (await req('GET', `/api/admin/perguntas/${novoSetor}`, null, adm)).json;
+  assert.equal(depois.length, 8);
+  assert.deepEqual(depois.map((q) => q.ordem), [1, 2, 3, 4, 5, 6, 7, 8]);
+});
+
+test('11g. Pesquisa com perguntas novas, resultado por pergunta e setor desativado', async () => {
+  const { json } = await req('GET', '/api/perguntas');
+  const qs = json.perguntas.filter((q) => q.setor_id === novoSetor);
+  const t = (await req('POST', '/api/avaliacoes/iniciar', { setor: novoSetor })).json.token;
+  const resp = qs.map((q) => (q.tipo === 'escala' ? { p: q.id, n: 4 } : q.tipo === 'nps' ? { p: q.id, n: 9 } : { p: q.id, v: [q.opcoes[0]] }));
+  const base = { data_atendimento: hoje(), turno: 'Dia', respondente: 'Paciente', tipo_atendimento: 'SUS' };
+  // falta uma pergunta de nota nova: não conclui
+  assert.equal((await req('POST', `/api/avaliacoes/${t}/concluir`, { ...base, respostas: resp.slice(1) })).status, 400, 'todas as perguntas de nota são obrigatórias');
+  assert.equal((await req('POST', `/api/avaliacoes/${t}/concluir`, { ...base, respostas: resp })).status, 201);
+  const rp = (await req('GET', `/api/admin/resultado-perguntas?s=${novoSetor}&p=30`, null, gerente)).json.itens.filter((x) => x.setor === novoSetor);
+  assert.equal(rp.length, qs.length, 'uma linha por pergunta respondida');
+  assert.ok(rp.some((x) => x.tipo === 'escala' && x.media === 4 && x.total === 1));
+  assert.ok(rp.some((x) => x.tipo === 'nps' && x.media === 9 && x.nps === 100));
+  assert.ok(rp.some((x) => x.tipo === 'positivos' && x.opcoes.length === 1));
+  assert.ok(!(await req('GET', '/api/admin/resultado-perguntas', null, adminRx)).json.itens.some((x) => x.setor === novoSetor), 'escopo do perfil vale no resultado por pergunta');
+  // reordenar setores e desativar
+  const ant = (await req('GET', '/api/admin/setores', null, gerente)).json;
+  const pos = ant.findIndex((x) => x.id === novoSetor);
+  assert.equal((await req('PATCH', `/api/admin/setores/${novoSetor}`, { mover: 'cima' }, gerente)).status, 200);
+  const dep = (await req('GET', '/api/admin/setores', null, gerente)).json;
+  assert.equal(dep.findIndex((x) => x.id === novoSetor), Math.max(0, pos - 1));
+  assert.equal((await req('PATCH', `/api/admin/setores/${novoSetor}`, { ativo: false }, adminRx)).status, 403);
+  assert.equal((await req('PATCH', `/api/admin/setores/${novoSetor}`, { nome: 'Fisioterapia e Reabilitação' }, gerente)).status, 200);
+  assert.equal((await req('PATCH', `/api/admin/setores/${novoSetor}`, { ativo: false }, gerente)).status, 200);
+  const pub = (await req('GET', '/api/perguntas')).json;
+  assert.ok(!pub.setores.some((x) => x.id === novoSetor), 'setor desativado some da pesquisa');
+  assert.equal((await req('POST', '/api/avaliacoes/iniciar', { setor: novoSetor })).status, 400, 'não dá para avaliar setor desativado');
+  assert.ok(!(await req('GET', '/api/tv')).json.setores.some((x) => x.id === novoSetor), 'some da TV');
+  assert.ok((await req('GET', '/api/admin/avaliacoes', null, gerente)).json.some((x) => x.setor === novoSetor), 'o histórico continua no painel');
+  assert.ok((await req('GET', '/api/admin/setores', null, gerente)).json.some((x) => x.id === novoSetor && x.ativo === false && x.avaliacoes === 1 && x.nome === 'Fisioterapia e Reabilitação'));
+  assert.equal((await req('PATCH', `/api/admin/setores/${novoSetor}`, { ativo: true }, gerente)).status, 200);
+  assert.ok((await req('GET', '/api/perguntas')).json.setores.some((x) => x.id === novoSetor), 'reativado volta para a pesquisa');
 });
 
 test('12. Editar perguntas: administrador edita o próprio setor, gerente edita todos', async () => {

@@ -42,3 +42,6 @@ main{flex:1;min-height:0;padding:1.3rem 2.5rem 1rem;display:grid;gap:1.3rem;grid
 .ab b{font-size:4.2rem;line-height:1;color:var(--mid);font-variant-numeric:tabular-nums}
 .ab span{font-size:1.35rem;color:var(--mut)}
 .tvf{flex:none;padding:.5rem 2.5rem .7rem;font-size:1.05rem;color:var(--mut);border-top:.1rem solid var(--line)}
+
+/* Muitos setores (mais de 11): letras e barras menores para tudo caber sem rolagem */
+.rows.mini .hb{font-size:1.3rem}.rows.mini .hb b{font-size:1.4rem}.rows.mini .tr{height:1.1rem}

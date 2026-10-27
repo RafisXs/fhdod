@@ -30,7 +30,7 @@ app.use('/api', exigirCabecalho, require('./routes/public'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api', (req, res) => res.status(404).json({ erro: 'Rota não encontrada.' }));
 
-app.use(express.static(path.join(__dirname, '..', 'public'), { extensions: ['html'] }));
+app.use(express.static(path.join(__dirname, '..', 'frontend'), { extensions: ['html'] }));
 
 // Tratamento de erros: mensagens amigáveis, sem vazar detalhes internos
 app.use((e, req, res, next) => {

@@ -61,7 +61,7 @@ const VALIDADE_RASCUNHO_HORAS = 24;
 
 async function iniciarRascunho(setor) {
   setor = String(setor || '');
-  const [[ok]] = await pool.query('SELECT COUNT(*) AS n FROM perguntas WHERE setor_id = ? AND ativa = 1', [setor]);
+  const [[ok]] = await pool.query('SELECT COUNT(*) AS n FROM perguntas p JOIN setores s ON s.id = p.setor_id WHERE p.setor_id = ? AND p.ativa = 1 AND s.ativo = 1', [setor]);
   if (!ok.n) falha('Setor inválido.');
   const token = crypto.randomBytes(16).toString('hex');
   await pool.query("INSERT INTO avaliacoes (setor_id, status, token) VALUES (?, 'rascunho', ?)", [setor, token]);
@@ -144,7 +144,7 @@ async function concluirRascunho(token, p) {
 async function registrarAvaliacao(p) {
   if (!p || typeof p !== 'object') falha('Dados inválidos.');
   const setor = String(p.setor || '');
-  const [perg] = await pool.query('SELECT id, ordem, texto, tipo, opcoes FROM perguntas WHERE setor_id = ? AND ativa = 1 ORDER BY ordem', [setor]);
+  const [perg] = await pool.query('SELECT p.id, p.ordem, p.texto, p.tipo, p.opcoes FROM perguntas p JOIN setores s ON s.id = p.setor_id WHERE p.setor_id = ? AND p.ativa = 1 AND s.ativo = 1 ORDER BY p.ordem', [setor]);
   if (!perg.length) falha('Setor inválido.');
   const porId = new Map(perg.map((q) => [q.id, { ...q, opcoes: asJson(q.opcoes) }]));
 

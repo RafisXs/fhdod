@@ -31,7 +31,7 @@
   main.wide .cards{grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:16px}
   main.wide #qed{display:grid;grid-template-columns:repeat(auto-fill,minmax(520px,1fr));gap:16px;align-items:start}
   main.wide #qed .qe{margin-bottom:0!important}
-  main.wide #qed>.btn,main.wide #qed>.msg{grid-column:1/-1}
+  main.wide #qed>.btn,main.wide #qed>.msg,main.wide #qed>.qadd,main.wide #qed>.row{grid-column:1/-1}
 }
 /* Monitores Full HD ou maiores: um pouco mais de respiro e letra maior */
 @media screen and (min-width:1700px){
