@@ -1,0 +1,42 @@
+:root{--red:#D71E26;--ink:#20232A;--mut:#5A6270;--line:#DADDE2;--bg:#F1F2F4}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.45 "Segoe UI",system-ui,Arial,sans-serif}
+.bar{background:#fff;border-bottom:4px solid var(--red);padding:14px 16px}
+.bar-in{max-width:900px;margin:0 auto}
+.bar h1{font-size:1.3rem;margin:0 0 10px}
+.fld label{display:block;font-weight:600;margin-bottom:4px;font-size:.92rem}
+.fld input{width:100%;font:inherit;border:2px solid var(--line);border-radius:10px;padding:10px 12px;min-height:46px}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.btn{font:inherit;font-weight:700;min-height:44px;padding:8px 16px;border-radius:10px;border:2px solid var(--red);background:var(--red);color:#fff;cursor:pointer}
+.btn.o{background:#fff;color:var(--red)}
+.aviso{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:#FFF4E5;border:1px solid #F2B27E;color:#8A3B0B;font-weight:600}
+.dica{margin:8px 0 0;color:var(--mut);font-size:.88rem}
+main{padding:18px 12px 40px;display:grid;gap:18px;justify-items:center}
+.load{color:var(--mut)}
+
+.cartaz{background:#fff;width:min(100%,794px);aspect-ratio:210/297;border:1px solid var(--line);border-top:14px solid var(--red);border-radius:6px;padding:4.5% 7%;display:flex;flex-direction:column;align-items:center;text-align:center;box-shadow:0 2px 10px rgba(32,35,42,.1)}
+.cartaz img.logo{height:clamp(40px,9vw,78px);width:auto}
+.cartaz h2{margin:3.5% 0 0;font-size:clamp(22px,5.4vw,44px);line-height:1.15}
+.cartaz .setor{margin:2% 0 0;font-size:clamp(20px,5vw,40px);font-weight:800;color:var(--red);line-height:1.15}
+.cartaz .qr{margin:3.5% 0 0;width:62%;max-width:480px;padding:2.5%;border:3px solid var(--ink);border-radius:14px;background:#fff}
+.cartaz .qr svg{display:block;width:100%;height:auto}
+.cartaz .como{margin:3.5% 0 0;font-size:clamp(15px,3vw,24px);font-weight:600}
+.cartaz .anon{margin:1.5% 0 0;color:var(--mut);font-size:clamp(13px,2.4vw,19px)}
+.cartaz .url{margin:auto 0 0;font-size:clamp(11px,2vw,16px);color:var(--mut);overflow-wrap:anywhere}
+.cartaz .proto{margin:1.5% 0 0;font-size:clamp(9px,1.5vw,12px);color:var(--mut)}
+@page{size:A4 portrait;margin:0}
+@media print{
+  body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .bar{display:none!important}
+  main{padding:0;gap:0;display:block}
+  .cartaz{width:210mm;height:297mm;aspect-ratio:auto;border:0;border-top:5mm solid var(--red);border-radius:0;box-shadow:none;padding:12mm 18mm;page-break-after:always;break-after:page}
+  .cartaz:last-child{page-break-after:auto;break-after:auto}
+  .cartaz img.logo{height:26mm}
+  .cartaz h2{font-size:34pt;margin-top:12mm}
+  .cartaz .setor{font-size:28pt}
+  .cartaz .qr{width:118mm;padding:5mm;margin-top:11mm}
+  .cartaz .como{font-size:17pt;margin-top:10mm}
+  .cartaz .anon{font-size:13pt}
+  .cartaz .url{font-size:11pt}
+  .cartaz .proto{font-size:8pt}
+}

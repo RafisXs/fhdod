@@ -1,10 +1,10 @@
-/* Área restrita: gerente, administrador de setor e visualizador. */
+
 var ME = null, TAB = "res", F = { p: "30", s: "", t: "", u: "" }, DATA = [], LOADERR = null, UPDT = null, CT = { st: "pendente", s: "" }, QS = "";
 var STL = { pendente: "Pendente", contatado: "Contatado", resolvido: "Resolvido" };
 function $(i) { return document.getElementById(i); }
-function isG() { return ME && ME.papel === "gerente"; }            // gerente: mexe em tudo
-function isV() { return ME && ME.papel === "visualizador"; }       // visualizador: só consulta
-function all() { return ME && !ME.setor_id; }                       // vê todos os setores (gerente ou visualizador sem setor)
+function isG() { return ME && ME.papel === "gerente"; }
+function isV() { return ME && ME.papel === "visualizador"; }
+function all() { return ME && !ME.setor_id; }
 function mySet() { return all() ? S : S.filter(function (s) { return s.id === ME.setor_id; }); }
 function papelTxt(u) {
   if (u.papel === "gerente") return "Gerente (todos os setores)";
@@ -82,7 +82,7 @@ function loadData(cb) {
 }
 function updBadge() { var n = DATA.filter(function (r) { return r.telefone && r.contato_status === "pendente"; }).length, b = $("t-ctt"); if (b) b.textContent = "Contatos" + (n ? " (" + n + ")" : ""); }
 
-/* ---------- Login e estrutura ---------- */
+
 function boot() {
   api("GET", "/api/me").then(function (me) { entrou(me); })
     .catch(function (e) { if (e.status === 401) loginView(); else erroTela(e); });
@@ -126,7 +126,7 @@ function setTab(t) {
   if (t === "res") iniciarVivo();
 }
 
-/* ---------- Resultados ---------- */
+
 function exportUrl() { var q = ["p=" + F.p]; if (F.s) q.push("s=" + F.s); if (F.t) q.push("t=" + encodeURIComponent(F.t)); if (F.u) q.push("u=" + encodeURIComponent(F.u)); return "/api/admin/export.xlsx?" + q.join("&"); }
 function viewRes() {
   $("tab").innerHTML = '<div class="dtop"><p class="mut" id="upd" style="margin:0"></p><span class="sp"></span><button class="ghost" id="rf">Atualizar</button><button class="ghost" id="pt">Imprimir</button><a class="ghost" id="ex" href="#">Exportar Excel</a></div><p class="prn" id="prn"></p><div id="vivo"></div><div class="filters">' +
@@ -149,7 +149,7 @@ function updRes() {
 
 
 
-/* ---------- Resultado por pergunta (período e setor do filtro) ---------- */
+
 var RPQ_ABERTO = false;
 var TIPO_TXT = { escala: "Nota (1 a 5)", nps: "Recomendação (1 a 10)", positivos: "O que foi bom", negativos: "O que melhorar" };
 function carregarRPQ() {
@@ -167,7 +167,7 @@ function carregarRPQ() {
   }).catch(function (e) { falhou(e); });
 }
 
-/* ---------- Ao vivo: respostas já gravadas, mesmo de quem ainda não terminou ---------- */
+
 var VIVO = null;
 function pararVivo() { if (VIVO) { clearInterval(VIVO); VIVO = null; } }
 function iniciarVivo() { pararVivo(); carregarVivo(); VIVO = setInterval(function () { if (!document.hidden) carregarVivo(); }, 8000); }
@@ -193,12 +193,12 @@ function carregarVivo() {
   api("GET", "/api/admin/andamento").then(function (j) {
     if (TAB !== "res") return;
     paintVivo(j);
-    // Alguém terminou uma avaliação: atualiza os indicadores sozinho (sem mexer nos filtros)
+
     if (DATA.length < 5000 && j.concluidas !== DATA.length) loadData(function () { updBadge(); if (TAB === "res") updRes(); });
   }).catch(function (e) { if (falhou(e)) pararVivo(); });
 }
 
-/* ---------- Contatos (telefones de avaliações abaixo da média) ---------- */
+
 function viewCtt() {
   var rows = DATA.filter(function (r) { return r.telefone && (!CT.st || r.contato_status === CT.st) && (!CT.s || r.setor === CT.s); });
   $("tab").innerHTML = '<p class="mut">Pessoas que deram nota abaixo da média e autorizaram o contato. Ligue para entender o que houve e registre o resultado. Use o telefone somente para este fim.</p><div class="filters">' +
@@ -226,7 +226,7 @@ function viewCtt() {
   });
 }
 
-/* ---------- Perguntas (gerente: todos os setores; administrador: o seu setor) ---------- */
+
 var TIPOS = [["escala", "Nota de satisfação (5 níveis)"], ["positivos", "O que foi bom (escolha várias)"], ["negativos", "O que pode melhorar (escolha várias)"]];
 var QL = [], QREM = [], MAXQ = 30;
 function viewPer() {
@@ -292,14 +292,31 @@ function salvarQ() {
     .catch(function (e) { if (falhou(e)) return; qmsg(e.message); if ($("qsave")) $("qsave").disabled = false; });
 }
 
-/* ---------- Setores (só o gerente): criar, renomear, ordenar, ativar e desativar ---------- */
+
+
+function baseUrl() {
+  var b = ""; try { b = localStorage.getItem("fhdod_base") || ""; } catch (e) {}
+  b = String(b).trim().replace(/\/+$/, "");
+  return /^https?:\/\/[^\s<>"']+$/i.test(b) ? b : location.origin;
+}
+function baseLocal(b) { var h = ""; try { h = new URL(b).hostname; } catch (e) {} return /^(localhost|127\.|0\.0\.0\.0|\[?::1\]?$)/.test(h) || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h); }
+function qrUrl(s) { return "/qr.html?setor=" + encodeURIComponent(s.id) + "&nome=" + encodeURIComponent(s.nome) + "&base=" + encodeURIComponent(baseUrl()); }
 function viewSet() {
   $("tab").innerHTML = '<p class="mut">Cadastre os departamentos do hospital. Cada setor novo nasce com 5 perguntas padrão (você ou o administrador do setor edita depois) e ganha o seu próprio link da pesquisa, que pode virar QR Code. Depois de criar, cadastre o administrador do setor na aba <strong>Equipe</strong>. Um setor <strong>desativado</strong> some da pesquisa e da TV, mas o histórico de avaliações fica guardado.</p>' +
-    '<section class="pnl" style="margin-bottom:14px"><h3>Novo setor</h3><form id="sf" novalidate class="cards" style="align-items:end">' + fld("sn", "Nome do setor", "text", 'maxlength="60" autocomplete="off" required') + '<div class="fld"><button class="btn" type="submit">Adicionar setor</button></div></form><p class="msg" id="smsg" role="status"></p></section><div id="slist"></div>';
+    '<section class="pnl" style="margin-bottom:14px"><h3>Novo setor</h3><form id="sf" novalidate class="cards" style="align-items:end">' + fld("sn", "Nome do setor", "text", 'maxlength="60" autocomplete="off" required') + '<div class="fld"><button class="btn" type="submit">Adicionar setor</button></div></form><p class="msg" id="smsg" role="status"></p></section><section class="pnl" style="margin-bottom:14px"><h3>QR Codes e links da pesquisa</h3><div class="row" style="align-items:end"><div class="fld" style="flex:1;min-width:260px;margin:0"><label for="pub">Endereço do site (usado nos links e nos QR Codes)</label><input id="pub" type="url" inputmode="url" autocomplete="off" placeholder="https://avaliacao.seuhospital.com.br" value="' + esc(baseUrl()) + '"></div><button type="button" class="btn o" id="pubsave">Salvar endereço</button><button type="button" class="btn" id="qrall">Imprimir QR Codes de todos os setores</button></div><p class="msg" id="pubmsg" role="status"></p><p class="mut" style="margin:0">Cada setor tem o botão <strong>QR Code</strong> na lista abaixo: abre um cartaz pronto para imprimir (ou salvar em PDF) e permite baixar o QR em PNG ou SVG. O QR Code é gerado aqui mesmo, sem site externo. Cole o cartaz no setor e os pacientes avaliam apontando a câmera do celular.</p></section><div id="slist"></div>';
+  function pubMsg() { var b = baseUrl(), m = $("pubmsg"); m.className = "msg"; m.textContent = baseLocal(b) ? "Atenção: " + b + " só funciona neste computador ou na rede interna. Informe o endereço onde o site estiver publicado antes de imprimir os cartazes." : ""; }
+  pubMsg();
+  $("pubsave").onclick = function () {
+    var v = $("pub").value.trim().replace(/\/+$/, ""), m = $("pubmsg");
+    if (!/^https?:\/\/[^\s<>"']+$/i.test(v)) { m.className = "msg"; m.textContent = "Endereço inválido. Use o formato https://seu-site.com.br"; return; }
+    try { localStorage.setItem("fhdod_base", v); } catch (e) {}
+    drawSet(); pubMsg(); if (!baseLocal(v)) { m.className = "msg ok"; m.textContent = "Endereço salvo neste navegador. Os links e QR Codes já usam ele."; }
+  };
+  $("qrall").onclick = function () { window.open("/qr.html?todos=1&base=" + encodeURIComponent(baseUrl()), "_blank", "noopener"); };
   $("sf").onsubmit = function (e) {
     e.preventDefault(); var m = $("smsg"); m.className = "msg"; m.textContent = "Criando...";
     api("POST", "/api/admin/setores", { nome: $("sn").value }).then(function (j) {
-      m.className = "msg ok"; m.textContent = "Setor criado: " + j.nome + ". Link da pesquisa: " + location.origin + "/?setor=" + j.id; $("sn").value = "";
+      m.className = "msg ok"; m.textContent = "Setor criado: " + j.nome + ". Link da pesquisa: " + baseUrl() + "/?setor=" + j.id + ". Use o botão QR Code na lista para imprimir o cartaz."; $("sn").value = "";
       return carregarSetores().then(drawSet);
     }).catch(function (x) { if (!falhou(x)) m.textContent = x.message; });
   };
@@ -309,9 +326,9 @@ function drawSet() {
   var el = $("slist"); if (!el) return;
   el.innerHTML = '<div class="tbl-wrap"><table class="tbl"><caption class="sr">Setores do hospital</caption><thead><tr><th>Setor</th><th>Situação</th><th>Perguntas</th><th>Avaliações</th><th>Link da pesquisa</th><th>Ações</th></tr></thead><tbody>' +
     S.map(function (s, i) {
-      return '<tr data-id="' + esc(s.id) + '"><td><strong>' + esc(s.nome) + "</strong></td><td>" + (s.ativo ? '<span class="bdg live">Ativo</span>' : '<span class="bdg">Desativado</span>') + "</td><td>" + s.perguntas + "</td><td>" + s.avaliacoes + '</td><td class="slink"><code>/?setor=' + esc(s.id) + '</code> <button class="ghost" data-a="cp">Copiar link</button></td><td><div class="row">' +
+      return '<tr data-id="' + esc(s.id) + '"><td><strong>' + esc(s.nome) + "</strong></td><td>" + (s.ativo ? '<span class="bdg live">Ativo</span>' : '<span class="bdg">Desativado</span>') + "</td><td>" + s.perguntas + "</td><td>" + s.avaliacoes + '</td><td class="slink"><code>' + esc(baseUrl()) + '/?setor=' + esc(s.id) + '</code> <button class="ghost" data-a="cp">Copiar link</button></td><td><div class="row">' +
         '<button class="ghost" data-a="up"' + (i === 0 ? " disabled" : "") + ' aria-label="Subir ' + esc(s.nome) + '">↑</button><button class="ghost" data-a="down"' + (i === S.length - 1 ? " disabled" : "") + ' aria-label="Descer ' + esc(s.nome) + '">↓</button>' +
-        '<button class="ghost" data-a="rn">Renomear</button><button class="ghost" data-a="pq">Perguntas</button><button class="btn o" data-a="tg">' + (s.ativo ? "Desativar" : "Ativar") + "</button></div></td></tr>";
+        '<button class="ghost" data-a="qr"' + (s.ativo ? "" : ' disabled title="Ative o setor para gerar o QR Code"') + '>QR Code</button><button class="ghost" data-a="rn">Renomear</button><button class="ghost" data-a="pq">Perguntas</button><button class="btn o" data-a="tg">' + (s.ativo ? "Desativar" : "Ativar") + "</button></div></td></tr>";
     }).join("") + "</tbody></table></div>";
   el.onclick = function (e) {
     var b = e.target.closest("button"); if (!b) return; var tr = b.closest("tr"), id = tr.dataset.id, a = b.dataset.a, s = S.filter(function (x) { return x.id === id; })[0];
@@ -320,11 +337,12 @@ function drawSet() {
     else if (a === "rn") { var n = window.prompt("Novo nome do setor:", s.nome); if (n && n.trim() !== s.nome) patch({ nome: n }); }
     else if (a === "tg") { if (s.ativo && !window.confirm("Desativar " + s.nome + "? Ele some da pesquisa e da TV. O histórico continua guardado.")) return; patch({ ativo: !s.ativo }); }
     else if (a === "pq") { QS = id; setTab("per"); }
-    else if (a === "cp") { var url = location.origin + "/?setor=" + id; try { navigator.clipboard.writeText(url).then(function () { b.textContent = "Copiado"; }, function () { window.prompt("Copie o link:", url); }); } catch (x) { window.prompt("Copie o link:", url); } }
+    else if (a === "qr") { window.open(qrUrl(s), "_blank", "noopener"); }
+    else if (a === "cp") { var url = baseUrl() + "/?setor=" + id; try { navigator.clipboard.writeText(url).then(function () { b.textContent = "Copiado"; }, function () { window.prompt("Copie o link:", url); }); } catch (x) { window.prompt("Copie o link:", url); } }
   };
 }
 
-/* ---------- Equipe (gerente: todas as contas; administrador: visualizadores do seu setor) ---------- */
+
 function viewEq() {
   api("GET", "/api/admin/usuarios").then(function (us) {
     var opts = isG() ? [["admin", "Administrador de setor"], ["visualizador", "Visualizador (somente leitura)"], ["gerente", "Gerente (todos os setores)"]] : [["visualizador", "Visualizador do meu setor"]];
@@ -361,7 +379,7 @@ function viewEq() {
   }).catch(function (e) { if (!falhou(e)) $("tab").innerHTML = '<div class="note">' + esc(e.message) + "</div>"; });
 }
 
-// Sessão sem uso por 15 minutos: sai sozinho
+
 var LASTACT = Date.now();
 ["click", "keydown", "touchstart"].forEach(function (ev) { document.addEventListener(ev, function () { LASTACT = Date.now(); }, true); });
 setInterval(function () { if (ME && Date.now() - LASTACT > 9e5) api("POST", "/api/logout").then(function () { ME = null; loginView("Sessão encerrada por inatividade."); }, function () {}); }, 30000);

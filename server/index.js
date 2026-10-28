@@ -1,4 +1,4 @@
-// Servidor da aplicação: serve as páginas e a API.
+
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
@@ -30,9 +30,9 @@ app.use('/api', exigirCabecalho, require('./routes/public'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api', (req, res) => res.status(404).json({ erro: 'Rota não encontrada.' }));
 
-app.use(express.static(path.join(__dirname, '..', 'frontend'), { extensions: ['html'] }));
+app.use(express.static(path.join(__dirname, '..', 'public'), { extensions: ['html'] }));
 
-// Tratamento de erros: mensagens amigáveis, sem vazar detalhes internos
+
 app.use((e, req, res, next) => {
   if (e.type === 'entity.parse.failed') return res.status(400).json({ erro: 'Dados inválidos.' });
   console.error(`[erro] ${req.method} ${req.originalUrl}:`, e.code || '', e.message);
@@ -47,13 +47,13 @@ const PORT = Number(process.env.PORT || 3000);
     process.exit(1);
   }
   if (await testarConexao()) {
-    // Atualiza sozinho um banco criado por versão anterior (não mexe em banco já atualizado)
+
     try {
       const feitos = await migrar(pool);
       if (feitos.length) console.log('Banco atualizado: ' + feitos.join('; ') + '.');
     } catch (e) { console.error('FALHA ao atualizar o banco (rode "npm run migrar" e veja a mensagem):', e.code || '', e.message); process.exit(1); }
   }
-  // No Express 5, se a porta não puder ser usada o erro chega aqui: não anunciar sucesso nesse caso
+
   app.listen(PORT, (err) => {
     if (err) {
       console.error(err.code === 'EADDRINUSE'

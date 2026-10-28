@@ -1,12 +1,12 @@
-// Testes automatizados da API (Node.js 18+, sem bibliotecas extras).
-//
-// Como rodar (com o servidor e o MySQL ligados, de preferência num banco de TESTE):
-//   Windows PowerShell:
-//     $env:TEST_GERENTE_EMAIL="gerente@exemplo.com"; $env:TEST_GERENTE_SENHA="sua-senha"; $env:BASE_URL="http://localhost:3000"; npm test
-//   Linux/macOS:
-//     TEST_GERENTE_EMAIL=gerente@exemplo.com TEST_GERENTE_SENHA=sua-senha npm test
-//
-// Os testes criam avaliações e usuários de teste no banco (use um banco de teste).
+
+
+
+
+
+
+
+
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -32,7 +32,7 @@ async function entrar(email, senha) {
 }
 const hoje = () => new Date().toISOString().slice(0, 10);
 
-// Monta uma avaliação válida para o setor, a partir das perguntas públicas
+
 async function montar(setor, { nota, nps, telefone, consentimento, opcao } = {}) {
   const { json } = await req('GET', '/api/perguntas');
   const qs = json.perguntas.filter((q) => q.setor_id === setor);
@@ -58,6 +58,15 @@ test('2. A pesquisa lista os setores e as perguntas', async () => {
   assert.equal(rx[2].tipo, 'nps', 'a 3ª pergunta é a recomendação de 1 a 10');
   assert.equal(rx[2].ordem, 3);
   assert.ok(rx.filter((q) => q.tipo === 'nps').length === 1, 'só uma pergunta de recomendação');
+});
+
+test('2b. A página do cartaz com QR Code e a biblioteca local são servidas (sem site externo)', async () => {
+  const pagina = await fetch(BASE + '/qr.html');
+  assert.equal(pagina.status, 200);
+  const html = await pagina.text();
+  assert.ok(!/https?:\/\/(?!localhost)/.test(html.replace(/https:\/\/avaliacao\.seuhospital\.com\.br/g, '')), 'o cartaz não carrega nada de sites externos');
+  assert.equal((await fetch(BASE + '/js/vendor/qrcode.js')).status, 200);
+  assert.equal((await fetch(BASE + '/js/qr.js')).status, 200);
 });
 
 test('3. Pedido que altera dados sem o cabeçalho de segurança é barrado', async () => {
@@ -96,7 +105,7 @@ test('6. Avaliação abaixo da média: telefone exige autorização e é guardad
   assert.equal(a.abaixo_media, true);
   assert.equal(a.contato_status, 'pendente');
   ids.ruim = a.id;
-  await req('POST', '/api/avaliacoes', await montar('pa', { nota: 3, nps: 7 })); // avaliação de outro setor
+  await req('POST', '/api/avaliacoes', await montar('pa', { nota: 3, nps: 7 }));
 });
 
 test('7. Dados inválidos são recusados', async () => {
@@ -115,7 +124,7 @@ test('7. Dados inválidos são recusados', async () => {
 });
 
 test('8. Gerente cria o administrador do Raio-X; só pode existir 1 administrador ativo por setor', async () => {
-  // limpa administradores de testes anteriores (só os que o próprio teste cria)
+
   const antes = (await req('GET', '/api/admin/usuarios', null, gerente)).json.filter((u) => u.papel === 'admin' && u.setor_id === 'rx' && u.ativo && /^admin\.rx\./.test(u.email));
   for (const u of antes) await req('PATCH', `/api/admin/usuarios/${u.id}`, { ativo: false }, gerente);
 
@@ -141,10 +150,10 @@ test('9. Administrador do setor vê e edita só o seu setor', async () => {
   assert.equal((await req('GET', '/api/admin/perguntas/pa', null, adminRx)).status, 403);
   const outra = (await req('GET', '/api/admin/avaliacoes', null, gerente)).json.find((x) => x.setor === 'pa');
   assert.equal((await req('PATCH', `/api/admin/avaliacoes/${outra.id}/contato`, { status: 'contatado' }, adminRx)).status, 404, 'não mexe em avaliação de outro setor');
-  // equipe: só visualizadores do próprio setor
+
   assert.equal((await criarUsuario(adminRx, { nome: 'Quer ser Gerente', email: `g.${emails.adminRx}`, senha: 'SenhaAdmin#1', papel: 'gerente' })).status, 403);
   assert.equal((await criarUsuario(adminRx, { nome: 'Quer ser Admin', email: `a.${emails.adminRx}`, senha: 'SenhaAdmin#1', papel: 'admin', setor_id: 'rx' })).status, 403);
-  const v = await criarUsuario(adminRx, { nome: 'Visualizador do Raio-X', email: emails.visRx, senha: 'SenhaVis#1234', setor_id: 'pa' /* tentativa de burlar o setor */ });
+  const v = await criarUsuario(adminRx, { nome: 'Visualizador do Raio-X', email: emails.visRx, senha: 'SenhaVis#1234', setor_id: 'pa'   });
   assert.equal(v.status, 201, JSON.stringify(v.json));
   ids.visRx = v.json.id;
   const equipe = (await req('GET', '/api/admin/usuarios', null, adminRx)).json;
@@ -187,7 +196,7 @@ test('11b. Gravação em tempo real: cada resposta vai para o banco na hora e s�
   const t = ini.json.token;
   assert.match(t, /^[0-9a-f]{32}$/);
   assert.equal((await req('POST', '/api/avaliacoes/iniciar', { setor: 'nao-existe' })).status, 400);
-  // 1ª resposta: já está no banco, mas a avaliação ainda não aparece nos painéis
+
   const q1 = qs[0], qn = qs.find((q) => q.tipo === 'nps'), qp = qs.find((q) => q.tipo === 'positivos');
   assert.equal((await req('PUT', `/api/avaliacoes/${t}/resposta`, { p: q1.id, n: 2 })).status, 200);
   assert.equal((await req('PUT', `/api/avaliacoes/${t}/resposta`, { p: q1.id, n: 5 })).status, 200, 'trocar a resposta funciona');
@@ -195,7 +204,7 @@ test('11b. Gravação em tempo real: cada resposta vai para o banco na hora e s�
   assert.equal((await req('PUT', `/api/avaliacoes/${t}/resposta`, { p: qp.id, v: ['opcao-inventada'] })).status, 400);
   assert.equal((await req('PUT', `/api/avaliacoes/${'0'.repeat(32)}/resposta`, { p: q1.id, n: 3 })).status, 400, 'token desconhecido');
   assert.equal((await req('GET', '/api/admin/avaliacoes', null, gerente)).json.length, antes, 'rascunho não aparece no painel');
-  // concluir sem terminar as perguntas obrigatórias é recusado
+
   const base = { data_atendimento: hoje(), turno: 'Noite', respondente: 'Familiar', tipo_atendimento: 'Particular' };
   assert.equal((await req('POST', `/api/avaliacoes/${t}/concluir`, base)).status, 400, 'faltam respostas');
   for (const q of qs) {
@@ -210,7 +219,7 @@ test('11b. Gravação em tempo real: cada resposta vai para o banco na hora e s�
   const a = lista.find((x) => x.setor === 'ob' && x.nps === 9 && x.turno === 'Noite' && x.respondente === 'Familiar');
   assert.ok(a, 'avaliação concluída aparece com as respostas gravadas');
   assert.ok(a.nota_media > 4 && a.nota_media <= 5);
-  // depois de concluída, o token deixa de valer
+
   assert.equal((await req('PUT', `/api/avaliacoes/${t}/resposta`, { p: q1.id, n: 1 })).status, 400);
   assert.equal((await req('POST', `/api/avaliacoes/${t}/concluir`, base)).status, 400);
 });
@@ -221,7 +230,7 @@ test('11d. Painel ao vivo: a resposta aparece na hora, mesmo sem terminar, respe
   const t = (await req('POST', '/api/avaliacoes/iniciar', { setor: 'ob' })).json.token;
   const qn = qs.find((q) => q.tipo === 'nps'), q1 = qs[0];
   const vivo = async (cookie) => (await req('GET', '/api/admin/andamento', null, cookie)).json;
-  // clicou na 1ª resposta e avançou: já está no painel
+
   await req('PUT', `/api/avaliacoes/${t}/resposta`, { p: q1.id, n: 2 });
   let j = await vivo(gerente);
   let it = j.itens.find((x) => x.respostas.some((r) => r.texto === q1.texto && r.n === 2) && x.setor === 'ob');
@@ -229,18 +238,18 @@ test('11d. Painel ao vivo: a resposta aparece na hora, mesmo sem terminar, respe
   assert.equal(it.ao_vivo, true);
   assert.equal(it.respondidas, 1);
   assert.ok(it.total >= 3);
-  // clicou na recomendação e avançou: a lista cresce
+
   await req('PUT', `/api/avaliacoes/${t}/resposta`, { p: qn.id, n: 3 });
   it = (await vivo(gerente)).itens.find((x) => x.id === it.id);
   assert.equal(it.respondidas, 2);
   assert.ok(it.respostas.some((r) => r.tipo === 'nps' && r.n === 3));
-  // setor: o administrador do Raio-X não enxerga o rascunho da Obstetrícia; o visualizador de todos enxerga
+
   assert.ok(!(await vivo(adminRx)).itens.some((x) => x.setor === 'ob'), 'admin de outro setor não vê');
   assert.ok((await vivo(visTodos)).itens.some((x) => x.id === it.id), 'visualizador sem setor vê');
   assert.ok(!(await vivo(visRx)).itens.some((x) => x.setor === 'ob'), 'visualizador do Raio-X não vê outro setor');
   assert.ok(!JSON.stringify(j).includes('telefone'), 'nunca traz telefone');
   assert.equal((await req('GET', '/api/admin/andamento')).status, 401, 'exige login');
-  // rascunho sem nenhuma resposta não aparece
+
   const vazio = (await req('POST', '/api/avaliacoes/iniciar', { setor: 'ob' })).json.token;
   assert.ok(vazio);
   const antes = (await vivo(gerente)).itens.length;
@@ -287,7 +296,7 @@ test('11f. Perguntas sem limite de 5: adicionar, reordenar, excluir; a recomenda
   const atuais = (await req('GET', `/api/admin/perguntas/${novoSetor}`, null, adm)).json;
   assert.equal(atuais.length, 5);
   const velha = (q) => ({ id: q.id, texto: q.texto, tipo: q.tipo, opcoes: q.opcoes, ativa: q.ativa });
-  // adiciona 5 perguntas novas (total 10) e põe a recomendação em 1º lugar
+
   const nps = atuais.find((q) => q.tipo === 'nps');
   const novas = [1, 2, 3, 4, 5].map((i) => ({ texto: `Pergunta nova número ${i} do setor?`, tipo: 'escala' }));
   novas[4] = { texto: 'Qual serviço você mais usou?', tipo: 'positivos', opcoes: ['Consulta', 'Exame', 'Retorno'] };
@@ -299,10 +308,10 @@ test('11f. Perguntas sem limite de 5: adicionar, reordenar, excluir; a recomenda
   assert.deepEqual(depois.map((q) => q.ordem), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   assert.equal(depois[0].tipo, 'nps', 'a recomendação foi para a 1ª posição');
   assert.equal(depois[9].texto, 'Qual serviço você mais usou?');
-  // a pesquisa pública mostra todas, na ordem
+
   const pub = (await req('GET', '/api/perguntas')).json.perguntas.filter((q) => q.setor_id === novoSetor);
   assert.equal(pub.length, 10);
-  // proteções
+
   const semNps = depois.filter((q) => q.tipo !== 'nps').map(velha);
   assert.equal((await req('PUT', `/api/admin/perguntas/${novoSetor}`, { perguntas: [...semNps, { ...velha(nps), remover: true }] }, adm)).status, 400, 'não exclui a recomendação');
   const desat = depois.map(velha); desat[0].ativa = false;
@@ -312,7 +321,7 @@ test('11f. Perguntas sem limite de 5: adicionar, reordenar, excluir; a recomenda
   assert.equal((await req('PUT', `/api/admin/perguntas/rx`, { perguntas: depois.map(velha) }, adm)).status, 403, 'admin não edita outro setor');
   const muitas = [...depois.map(velha), ...Array.from({ length: 25 }, (_, i) => ({ texto: `Pergunta extra ${i} do setor?`, tipo: 'escala' }))];
   assert.equal((await req('PUT', `/api/admin/perguntas/${novoSetor}`, { perguntas: muitas }, adm)).status, 400, 'limite de 30 por setor');
-  // exclui duas perguntas e confere a numeração
+
   const excl = depois.map(velha); excl[2] = { ...excl[2], remover: true }; excl[3] = { ...excl[3], remover: true };
   assert.equal((await req('PUT', `/api/admin/perguntas/${novoSetor}`, { perguntas: excl }, adm)).status, 200);
   depois = (await req('GET', `/api/admin/perguntas/${novoSetor}`, null, adm)).json;
@@ -326,7 +335,7 @@ test('11g. Pesquisa com perguntas novas, resultado por pergunta e setor desativa
   const t = (await req('POST', '/api/avaliacoes/iniciar', { setor: novoSetor })).json.token;
   const resp = qs.map((q) => (q.tipo === 'escala' ? { p: q.id, n: 4 } : q.tipo === 'nps' ? { p: q.id, n: 9 } : { p: q.id, v: [q.opcoes[0]] }));
   const base = { data_atendimento: hoje(), turno: 'Dia', respondente: 'Paciente', tipo_atendimento: 'SUS' };
-  // falta uma pergunta de nota nova: não conclui
+
   assert.equal((await req('POST', `/api/avaliacoes/${t}/concluir`, { ...base, respostas: resp.slice(1) })).status, 400, 'todas as perguntas de nota são obrigatórias');
   assert.equal((await req('POST', `/api/avaliacoes/${t}/concluir`, { ...base, respostas: resp })).status, 201);
   const rp = (await req('GET', `/api/admin/resultado-perguntas?s=${novoSetor}&p=30`, null, gerente)).json.itens.filter((x) => x.setor === novoSetor);
@@ -335,7 +344,7 @@ test('11g. Pesquisa com perguntas novas, resultado por pergunta e setor desativa
   assert.ok(rp.some((x) => x.tipo === 'nps' && x.media === 9 && x.nps === 100));
   assert.ok(rp.some((x) => x.tipo === 'positivos' && x.opcoes.length === 1));
   assert.ok(!(await req('GET', '/api/admin/resultado-perguntas', null, adminRx)).json.itens.some((x) => x.setor === novoSetor), 'escopo do perfil vale no resultado por pergunta');
-  // reordenar setores e desativar
+
   const ant = (await req('GET', '/api/admin/setores', null, gerente)).json;
   const pos = ant.findIndex((x) => x.id === novoSetor);
   assert.equal((await req('PATCH', `/api/admin/setores/${novoSetor}`, { mover: 'cima' }, gerente)).status, 200);
@@ -359,7 +368,7 @@ test('12. Editar perguntas: administrador edita o próprio setor, gerente edita 
   assert.equal(atuais.length, 5);
   const original = JSON.parse(JSON.stringify(atuais));
   const editadas = atuais.map((q) => ({ id: q.id, texto: q.ordem === 1 ? 'Pergunta editada pelo administrador de teste?' : q.texto, tipo: q.tipo, opcoes: q.opcoes, ativa: q.ordem === 2 ? false : true }));
-  editadas[2].ativa = false; // tentativa de desativar a recomendação (3ª pergunta): deve continuar ativa
+  editadas[2].ativa = false;
   const put = await req('PUT', '/api/admin/perguntas/rx', { perguntas: editadas }, adminRx);
   assert.equal(put.status, 200, JSON.stringify(put.json));
   const publicas = (await req('GET', '/api/perguntas')).json.perguntas.filter((q) => q.setor_id === 'rx');
@@ -412,14 +421,14 @@ test('16. Regras de segurança da equipe', async () => {
   const meuId = lista.find((u) => u.email === eu.email).id;
   assert.equal((await req('PATCH', `/api/admin/usuarios/${meuId}`, { ativo: false }, gerente)).status, 400, 'gerente não desativa a si mesmo');
   assert.equal((await req('PATCH', `/api/admin/usuarios/${meuId}`, { papel: 'visualizador' }, gerente)).status, 400, 'gerente não se rebaixa');
-  // admin não mexe em contas fora do alcance
+
   assert.equal((await req('PATCH', `/api/admin/usuarios/${ids.visTodos}`, { ativo: false }, adminRx)).status, 404, 'admin não mexe em visualizador de todos os setores');
   assert.equal((await req('PATCH', `/api/admin/usuarios/${meuId}`, { ativo: false }, adminRx)).status, 404, 'admin não mexe no gerente');
-  // admin desativa o visualizador do próprio setor e ele perde o acesso na hora
+
   assert.equal((await req('PATCH', `/api/admin/usuarios/${ids.visRx}`, { ativo: false }, adminRx)).status, 200);
   assert.equal((await req('GET', '/api/admin/avaliacoes', null, visRx)).status, 401, 'conta desativada perde o acesso na hora');
   assert.equal((await req('PATCH', `/api/admin/usuarios/${ids.visRx}`, { ativo: true }, adminRx)).status, 200, 'e pode ser reativada');
-  // desativar o administrador libera o setor para outro
+
   assert.equal((await req('PATCH', `/api/admin/usuarios/${ids.adminRx}`, { ativo: false }, gerente)).status, 200);
   assert.equal((await req('GET', '/api/admin/avaliacoes', null, adminRx)).status, 401);
   const novo = await criarUsuario(gerente, { nome: 'Novo Admin Raio-X', email: `novo.${emails.adminRx}`, senha: 'SenhaAdmin#2', papel: 'admin', setor_id: 'rx' });

@@ -43,6 +43,7 @@ Sistema web para coletar a avaliação do atendimento por setor (pesquisa de sat
 - **Ao vivo:** no topo de Resultados, um painel mostra quem está respondendo agora e quem não terminou, com as respostas já dadas (nota, recomendação, pontos positivos e a melhorar). Cada resposta aparece quando o paciente avança, e o painel se atualiza sozinho a cada 8 segundos. Esses rascunhos não entram nos indicadores, que contam só as avaliações enviadas. Quando alguém termina, os indicadores se atualizam sozinhos. Respeita o setor de cada perfil e nunca mostra telefone.
 - Perguntas: **adicionar, excluir, reordenar (subir e descer)**, editar texto, tipo e opções, e ativar ou desativar. A pergunta de recomendação (1 a 10) é protegida: dá para mudar o texto e a posição, não excluir. Perguntas excluídas não apagam as respostas já dadas.
 - **Setores (só o gerente):** criar setor novo (nasce com 5 perguntas padrão e o seu link da pesquisa para virar QR Code), renomear, mudar a ordem, ativar e desativar. Setor desativado some da pesquisa e da TV, mas o histórico fica. Não há exclusão definitiva.
+- **QR Code pelo painel:** na aba Setores, cada setor tem o botão **QR Code**, que abre um cartaz A4 pronto para imprimir (ou salvar em PDF), com o logo, o nome do setor e o QR Code, e permite baixar o QR em PNG ou SVG. Há também o botão para imprimir os cartazes de todos os setores ativos de uma vez. O QR é gerado no próprio navegador (biblioteca local, sem site externo). Informe antes o **endereço do site publicado** (campo na aba Setores, guardado neste navegador): um QR com `localhost` só funciona no seu computador.
 - **Resultado por pergunta:** em Resultados, nota média, NPS e opções mais escolhidas de cada pergunta, inclusive as novas.
 - Equipe: criação e desativação de contas, conforme o perfil.
 
@@ -89,22 +90,23 @@ Regras:
 
 ```
 .
-├── frontend/                  # Interface web (HTML, CSS, JavaScript e imagens)
+├── database/
+│   └── schema.sql             # Tabelas, restrições e dados iniciais (MySQL)
+├── public/                    # Frontend
 │   ├── index.html             # Pesquisa
 │   ├── admin.html             # Área restrita
 │   ├── tv.html                # TV Wall
+│   ├── qr.html                # Cartaz com QR Code por setor (js/qr.js, js/vendor/qrcode.js)
 │   ├── css/  img/  js/
-├── backend/                   # API Express, banco e testes
+├── server/
 │   ├── index.js               # Servidor Express
 │   ├── db.js                  # Conexão com o MySQL (pool) e teste de conexão
 │   ├── lib/                   # Autenticação, validação de avaliações, utilidades
 │   ├── routes/                # public.js (pesquisa, login, TV) e admin.js (área restrita)
-│   ├── scripts/               # Comandos de migração e criação do gerente
-│   ├── database/schema.sql    # Tabelas, restrições e dados iniciais (MySQL)
-│   └── tests/api.test.js      # Testes automatizados da API
-├── package.json               # Comandos para iniciar e testar o backend
+│   └── scripts/criar-gerente.js, migrar.js
+├── tests/api.test.js          # Testes automatizados da API
 ├── .env.example               # Modelo das variáveis de ambiente
-└── README.md
+└── package.json
 ```
 
 ## Instalação
@@ -134,10 +136,10 @@ Pré-requisitos: **Node.js 18 ou superior** (com npm) e **MySQL Server 8.0 ou su
    cp .env.example .env          (Linux e macOS)
    ```
 
-4. Crie o banco e as tabelas. No **MySQL Workbench**: abra a conexão, menu *File > Open SQL Script*, escolha `backend/database/schema.sql` e clique no raio (Execute). Ou pelo terminal:
+4. Crie o banco e as tabelas. No **MySQL Workbench**: abra a conexão, menu *File > Open SQL Script*, escolha `database/schema.sql` e clique no raio (Execute). Ou pelo terminal:
 
    ```
-   mysql -u root -p < backend/database/schema.sql
+   mysql -u root -p < database/schema.sql
    ```
 
    O script pode ser executado mais de uma vez sem apagar dados.
@@ -214,7 +216,7 @@ O QR Code da pesquisa de satisfação não deve ser confundido com o QR Code de 
 
 ## Banco de dados
 
-Banco `hospital_experiencia`, definido em `backend/database/schema.sql`.
+Banco `hospital_experiencia`, definido em `database/schema.sql`.
 
 | Tabela | Finalidade |
 | --- | --- |
@@ -288,7 +290,7 @@ Linux e macOS:
 BASE_URL=http://localhost:3000 TEST_GERENTE_EMAIL=gerente@exemplo.com TEST_GERENTE_SENHA=sua-senha npm test
 ```
 
-Os 22 testes cobrem: conexão, perguntas, proteção CSRF, login, registro de avaliação, gravação em tempo real (rascunho), painel ao vivo, setores novos, perguntas além de 5 (adicionar, reordenar, excluir), regras do telefone, validações, os três perfis (inclusive 1 administrador por setor), edição de perguntas, contatos, Excel, TV Wall e regras de segurança da equipe.
+Os 23 testes cobrem: conexão, perguntas, proteção CSRF, login, registro de avaliação, gravação em tempo real (rascunho), painel ao vivo, página do QR Code, setores novos, perguntas além de 5 (adicionar, reordenar, excluir), regras do telefone, validações, os três perfis (inclusive 1 administrador por setor), edição de perguntas, contatos, Excel, TV Wall e regras de segurança da equipe.
 
 Também foi feito um teste de interface com navegador simulado (jsdom) cobrindo a pesquisa e as telas de gerente, administrador, visualizador e TV Wall. Esse teste não faz parte do repositório.
 
@@ -300,8 +302,8 @@ Verificação feita neste protótipo: API (16 de 16) e interface contra **MySQL 
 | --- | --- |
 | `ECONNREFUSED` | O MySQL não está rodando ou `DB_HOST` e `DB_PORT` estão errados. Inicie o serviço do MySQL. |
 | `ER_ACCESS_DENIED_ERROR` | Usuário ou senha do MySQL incorretos. Confira `DB_USER` e `DB_PASSWORD` no `.env`. |
-| `ER_BAD_DB_ERROR` | O banco não existe. Rode `backend/database/schema.sql` e confira `DB_NAME`. |
-| `ER_NO_SUCH_TABLE` | Faltam as tabelas. Rode `backend/database/schema.sql`. |
+| `ER_BAD_DB_ERROR` | O banco não existe. Rode `database/schema.sql` e confira `DB_NAME`. |
+| `ER_NO_SUCH_TABLE` | Faltam as tabelas. Rode `database/schema.sql`. |
 | `FALHA: a porta 3000 já está em uso` | O servidor já está rodando em outro terminal. Feche-o ou mude `PORT` no `.env`. |
 | `FALHA: defina JWT_SECRET no arquivo .env ...` | `JWT_SECRET` está vazio, curto demais ou igual ao exemplo. Gere um novo (comando na seção de variáveis de ambiente) e reinicie. |
 | `Muitas tentativas de login` | O limite de 10 tentativas em 15 minutos foi atingido. Aguarde ou reinicie o servidor em desenvolvimento. |
@@ -314,6 +316,10 @@ Verificação feita neste protótipo: API (16 de 16) e interface contra **MySQL 
 - O servidor não faz HTTPS sozinho. Em produção, publique atrás de um proxy com HTTPS e use `COOKIE_SECURE=true` e `TRUST_PROXY`.
 - Não há recuperação de senha por e-mail: o gerente (ou o administrador, para visualizadores) define uma nova senha na aba Equipe.
 - Ainda não há documentação online da API (OpenAPI/Swagger) nem a pasta `docs/` pedida na disciplina.
+
+## Créditos
+
+- Geração do QR Code: biblioteca `qrcode-generator` 1.4.4, de Kazuhiko Arase, licença MIT (arquivo `public/js/vendor/qrcode.js`, com o aviso de licença mantido). "QR Code" é marca registrada da DENSO WAVE INCORPORATED.
 
 ## Fontes institucionais
 

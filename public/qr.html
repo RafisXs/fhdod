@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Cartaz com QR Code | Avaliação do atendimento FHDOD</title>
+<link rel="icon" href="img/icone.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/qr.css">
+</head>
+<body>
+<div class="bar" id="bar">
+  <div class="bar-in">
+    <h1 id="tit">Cartaz com QR Code</h1>
+    <div class="fld"><label for="base">Endereço do site (o QR Code leva para ele)</label><input id="base" type="url" inputmode="url" autocomplete="off" placeholder="https://avaliacao.seuhospital.com.br"></div>
+    <div class="acts">
+      <button type="button" id="apl" class="btn o">Atualizar QR Code</button>
+      <button type="button" id="prt" class="btn">Imprimir cartaz</button>
+      <button type="button" id="png" class="btn o">Baixar QR (PNG)</button>
+      <button type="button" id="svg" class="btn o">Baixar QR (SVG)</button>
+    </div>
+    <p class="aviso" id="aviso" role="alert" hidden></p>
+    <p class="dica" id="dica">Dica: ao imprimir, escolha "Salvar como PDF" para guardar o cartaz.</p>
+  </div>
+</div>
+<main id="cartazes" aria-live="polite"><p class="load">Montando o cartaz…</p></main>
+<script src="js/vendor/qrcode.js"></script>
+<script src="js/qr.js"></script>
+</body>
+</html>

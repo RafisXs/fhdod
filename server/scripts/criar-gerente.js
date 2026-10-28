@@ -1,11 +1,11 @@
-// Cria o gerente (ou redefine a senha dele):  npm run criar-gerente
+
 require('dotenv').config();
 const readline = require('readline');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../db');
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-// Guarda as linhas digitadas (funciona digitando no terminal ou colando/encadeando várias linhas)
+
 const fila = [];
 let espera = null;
 rl.on('line', (l) => { if (espera) { const f = espera; espera = null; f(l); } else fila.push(l); });
@@ -13,7 +13,7 @@ const perguntar = (t) => { process.stdout.write(t); return new Promise((ok) => {
 
 (async () => {
   try {
-    // Também aceita GERENTE_NOME, GERENTE_EMAIL e GERENTE_SENHA como variáveis de ambiente (sem perguntas)
+
     const nome = (process.env.GERENTE_NOME || await perguntar('Nome do gerente: ')).trim();
     const email = (process.env.GERENTE_EMAIL || await perguntar('E-mail: ')).trim().toLowerCase();
     const senha = process.env.GERENTE_SENHA || await perguntar('Senha (mínimo 8 caracteres): ');

@@ -72,7 +72,7 @@ a.ghost{text-decoration:none}
 .proto{font-size:.82rem;color:var(--mut);margin:14px 0 0}
 @media print{.tabs{display:none!important}}
 
-/* Ao vivo: avaliações em andamento (respostas gravadas na hora) */
+
 .pnl.vivo{margin:12px 0}
 .pnl.vivo h3 small{font-weight:400;font-size:.8rem}
 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;background:#16A34A;margin-right:8px;vertical-align:middle;animation:pulso 1.6s infinite}
@@ -87,7 +87,7 @@ a.ghost{text-decoration:none}
 .rsp b{font-variant-numeric:tabular-nums}
 @media print{.pnl.vivo{display:none}}
 
-/* Editor de perguntas e setores */
+
 .qtools{margin-bottom:10px}
 .ghost.danger{color:#B42318;border-color:#B42318}
 .qadd{margin-bottom:12px}
