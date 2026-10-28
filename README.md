@@ -4,9 +4,7 @@ Sistema web para coletar a avaliação do atendimento por setor (pesquisa de sat
 
 > **Projeto acadêmico / protótipo de solução** para a Fundação Hospitalar Dr. Oswaldo Diesel (FHDOD), Três Coroas - RS. **Não é o sistema oficial da instituição.** Os dados exibidos pelo sistema podem ser demonstrativos.
 
-- **Autores:** `[Nome 1]` e `[Nome 2]`
-- **Documentação online da API:** `[colar o link aqui]`
-- **Quadro Kanban:** `[colar o link aqui]`
+- **Autores:** `Rafael Bazotti` e `Pedro Goetz`
 
 ## Sumário
 
