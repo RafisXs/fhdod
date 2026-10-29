@@ -1,4 +1,4 @@
-
+/* TV Wall: indicadores agregados, atualizados sozinhos. Nunca mostra dados de pacientes. */
 var tv = document.getElementById("tv"), rel = document.getElementById("rel");
 var TOKEN = ""; try { TOKEN = new URLSearchParams(location.search).get("token") || ""; } catch (e) {}
 var ATUALIZADO = null;

@@ -1,22 +1,22 @@
-
-
+/* Painel da equipe em monitor de computador (a partir de 1100 px de largura).
+   No celular e no tablet continua valendo o layout de coluna única do style.css. */
 @media screen and (min-width:1100px){
   body:has(main.wide){font-size:17px}
   body:has(main.wide) .hd div{max-width:1800px;padding:12px 40px}
   body:has(main.wide) footer{max-width:1800px;padding:0 40px 28px}
   main.wide{max-width:1800px;padding:20px 40px 28px}
 
-
+  /* Indicadores: uma linha só, números grandes */
   main.wide .kpis{grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:16px}
   main.wide .kpi{padding:16px 20px;border-radius:16px}
   main.wide .kpi small{font-size:.95rem}
   main.wide .kpi b{font-size:2.9rem;line-height:1.15;font-variant-numeric:tabular-nums}
   main.wide .kpi span{font-size:.9rem}
 
-
+  /* Filtros numa linha e botões de ação alinhados à direita */
   main.wide .filters{grid-template-columns:repeat(4,minmax(0,1fr));padding:14px 16px;gap:16px}
 
-
+  /* Grade de 12 colunas: evolução (8) + recomendação (4); três painéis (4+4+4); tabela por setor (12) */
   main.wide .pn{grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}
   main.wide .pn>.pnl{grid-column:span 4;padding:20px 22px;border-radius:16px}
   main.wide .pn>.pnl:nth-child(1){grid-column:span 8}
@@ -26,16 +26,37 @@
   main.wide .tbl{font-size:1rem}
   main.wide .tbl th,main.wide .tbl td{padding:11px 10px}
 
-
+  /* Abas, contatos, perguntas e equipe aproveitam a largura */
   main.wide .tabs button{padding:10px 22px;font-size:1rem}
   main.wide .cards{grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:16px}
   main.wide #qed{display:grid;grid-template-columns:repeat(auto-fill,minmax(520px,1fr));gap:16px;align-items:start}
   main.wide #qed .qe{margin-bottom:0!important}
   main.wide #qed>.btn,main.wide #qed>.msg,main.wide #qed>.qadd,main.wide #qed>.row{grid-column:1/-1}
 }
-
+/* Monitores Full HD ou maiores: um pouco mais de respiro e letra maior */
 @media screen and (min-width:1700px){
   body:has(main.wide){font-size:18px}
   main.wide .kpi b{font-size:3.3rem}
   main.wide .hist{height:200px}
+}
+
+/* Login no computador: duas colunas (apresentação + formulário) */
+@media screen and (min-width:1000px){
+  body:has(main.login) .hd div{max-width:1200px;padding:12px 40px}
+  body:has(main.login) footer{max-width:1200px;padding:0 40px 28px}
+  main.login{max-width:1200px;padding:6vh 40px 40px}
+  main.login .in{max-width:none}
+  .entrada{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:0;align-items:stretch;border-radius:24px;box-shadow:0 12px 40px rgba(32,35,42,.14);overflow:hidden;min-height:520px}
+  .lg-card{order:2;border:0;border-radius:0;box-shadow:none;padding:56px 64px;display:flex;flex-direction:column;justify-content:center}
+  .lg-card h1{font-size:2rem}
+  .lg-sub{font-size:1.02rem;margin-bottom:24px}
+  .lg-card .fld{margin-bottom:18px}
+  .lg-card .fld input{min-height:56px;font-size:1.05rem}
+  .lg-card .cta{min-height:56px;font-size:1.1rem}
+  .lg-info{order:1;border-radius:0;padding:56px 52px;display:flex;flex-direction:column;justify-content:center}
+  .lg-info h2{font-size:1.9rem;line-height:1.2;margin:8px 0 14px}
+  .lg-info p{font-size:1.05rem;line-height:1.5}
+  .lg-info ul{margin-top:12px;gap:12px}
+  .lg-info li{padding:14px 16px}
+  .lg-info li strong{font-size:1.05rem}
 }

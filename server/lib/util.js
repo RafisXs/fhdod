@@ -1,8 +1,8 @@
-
+// Funções de apoio compartilhadas pelas rotas.
 const asJson = (v) => {
   if (v == null) return null;
   if (typeof v === 'string') { try { return JSON.parse(v); } catch { return null; } }
-  return v;
+  return v; // MySQL já devolve o JSON convertido
 };
 
 const erro = (res, status, msg) => res.status(status).json({ erro: msg });
@@ -11,11 +11,11 @@ const TURNOS = ['Dia', 'Noite'];
 const RESPONDENTES = ['Paciente', 'Familiar'];
 const TIPOS = ['SUS', 'Plano de Saúde', 'Particular'];
 const STATUS = ['pendente', 'contatado', 'resolvido'];
-const ABAIXO_MEDIA = 3;
-const NPS_ORDEM = 3;
-const MAX_PERGUNTAS = 30;
+const ABAIXO_MEDIA = 3; // média das perguntas de nota abaixo disso = abaixo da média
+const NPS_ORDEM = 3; // posição fixa da pergunta de recomendação (carinhas de 1 a 10)
+const MAX_PERGUNTAS = 30; // limite técnico por setor (evita pesquisa interminável e abuso)
 const NPS_TEXTO_PADRAO = 'De 1 a 10, qual a chance de você recomendar o hospital a um amigo ou familiar?';
-
+// Perguntas de um setor recém-criado (o gerente ou o admin do setor edita depois)
 const PERGUNTAS_PADRAO = [
   { tipo: 'escala', texto: 'Como foi o atendimento da equipe?' },
   { tipo: 'escala', texto: 'Como foi o tempo de espera?' },
@@ -23,9 +23,9 @@ const PERGUNTAS_PADRAO = [
   { tipo: 'positivos', texto: 'O que foi bom no atendimento?', opcoes: ['Equipe atenciosa', 'Rapidez', 'Informações claras', 'Ambiente limpo', 'Conforto', 'Respeito'] },
   { tipo: 'negativos', texto: 'O que pode melhorar?', opcoes: ['Demora', 'Falta de informação', 'Atendimento frio', 'Limpeza', 'Estrutura e conforto', 'Nada a melhorar'] },
 ];
-const NPS_MAX_DETRATOR = 6;
+const NPS_MAX_DETRATOR = 6; // recomendação até 6 também conta como abaixo da média
 
-
+// Evita que o Excel execute fórmulas escondidas em textos (=, +, -, @).
 const celulaSegura = (v) => (typeof v === 'string' && /^[=+\-@\t\r]/.test(v) ? "'" + v : v);
 
 module.exports = { asJson, erro, inteiro, TURNOS, RESPONDENTES, TIPOS, STATUS, ABAIXO_MEDIA, NPS_ORDEM, NPS_MAX_DETRATOR, MAX_PERGUNTAS, PERGUNTAS_PADRAO, celulaSegura };

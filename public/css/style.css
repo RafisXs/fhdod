@@ -72,7 +72,7 @@ a.ghost{text-decoration:none}
 .proto{font-size:.82rem;color:var(--mut);margin:14px 0 0}
 @media print{.tabs{display:none!important}}
 
-
+/* Ao vivo: avaliações em andamento (respostas gravadas na hora) */
 .pnl.vivo{margin:12px 0}
 .pnl.vivo h3 small{font-weight:400;font-size:.8rem}
 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;background:#16A34A;margin-right:8px;vertical-align:middle;animation:pulso 1.6s infinite}
@@ -87,7 +87,7 @@ a.ghost{text-decoration:none}
 .rsp b{font-variant-numeric:tabular-nums}
 @media print{.pnl.vivo{display:none}}
 
-
+/* Editor de perguntas e setores */
 .qtools{margin-bottom:10px}
 .ghost.danger{color:#B42318;border-color:#B42318}
 .qadd{margin-bottom:12px}
@@ -95,3 +95,21 @@ tr.grp td{background:var(--sb);padding-top:10px}
 .rpq summary{cursor:pointer;list-style:revert}.rpq summary h3{display:inline;margin:0}
 .slink code{font-size:.82rem;overflow-wrap:anywhere}
 .slink .ghost{margin:4px 0 0}
+
+/* Tela de login da área restrita */
+.entrada{display:grid;gap:18px}
+.lg-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:var(--sh)}
+.lg-card h1{margin:0 0 4px}
+.lg-sub{margin:0 0 16px}
+.lg-help{margin:16px 0 0;font-size:.88rem}
+.caps{margin:0 0 8px;color:var(--warn);font-weight:700;font-size:.9rem}
+.lg-info{background:var(--pri);color:var(--on);border-radius:18px;padding:22px}
+.lg-info h2{margin:4px 0 8px;font-size:1.25rem;color:inherit}
+.lg-info p{margin:0 0 12px}
+.lg-eyebrow{font-size:.78rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.9}
+.lg-info ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.lg-info li{display:grid;gap:2px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.16)}
+.lg-info li span{font-size:.9rem;opacity:.95}
+
+/* Link do rodapé do painel */
+footer .mut a{color:var(--pri);font-weight:600;text-underline-offset:3px}

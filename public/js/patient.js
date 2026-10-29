@@ -1,8 +1,8 @@
-
+/* Pesquisa de satisfação (pacientes e familiares). */
 var LAB = ["Muito insatisfeito", "Insatisfeito", "Regular", "Satisfeito", "Muito satisfeito"];
 var BELOW = 3, NPSMAX = 6;
 var PQ = {}, cur = null, st = 0, ans = { r: {} }, T0 = Date.now();
-
+// Gravação em tempo real: cada resposta vai para o banco assim que é dada (fila para manter a ordem)
 var tok = null, tokP = null, fila = Promise.resolve(), falhas = {};
 
 function Q() { return PQ[cur.id] || []; }
@@ -27,7 +27,7 @@ function boot() {
 
 function start(s) { cur = s; st = 0; ans = { r: {} }; T0 = Date.now(); tok = null; tokP = null; falhas = {}; render(); }
 
-
+// Cria o rascunho no banco na primeira resposta (quem só abre a página não deixa nada gravado)
 function token() {
   if (tok) return Promise.resolve(tok);
   if (!tokP) {
@@ -37,7 +37,7 @@ function token() {
   }
   return tokP;
 }
-
+// Grava uma resposta agora. Se a internet falhar, o envio final manda tudo de novo (nada se perde).
 function salvar(q) {
   var v = ans.r[q.id], corpo = q.tipo === "escala" || q.tipo === "nps" ? { p: q.id, n: v } : { p: q.id, v: v || [] }, setor = cur.id;
   fila = fila.then(function () {
@@ -94,7 +94,7 @@ function render() {
   bind();
 }
 
-
+// Nota abaixo da média: média das perguntas de nota < 3, ou recomendação <= 6
 function below() {
   var ns = [], nps = null;
   Q().forEach(function (q) { var v = ans.r[q.id]; if (q.tipo === "escala" && v) ns.push(v); if (q.tipo === "nps") nps = v; });
@@ -129,7 +129,7 @@ function details() {
     var resp = [];
     Q().forEach(function (q) { var v = ans.r[q.id]; if (q.tipo === "nps" || q.tipo === "escala") resp.push({ p: q.id, n: v }); else resp.push({ p: q.id, v: v || [] }); });
     var corpo = { respostas: resp, data_atendimento: ans.d, turno: ans.tu, respondente: ans.re, tipo_atendimento: ans.ti, telefone: dg || null, consentimento: !!dg };
-
+    // As respostas já foram gravando uma a uma; aqui vão de novo só como garantia, junto com os detalhes finais
     function enviar(tentativa) {
       return fila.then(token).then(function (t) { return api("POST", "/api/avaliacoes/" + t + "/concluir", corpo); }).catch(function (e) {
         if (tentativa < 1 && e.status === 400 && /não está mais aberta|não encontrada/.test(e.message)) { tok = null; tokP = null; return enviar(tentativa + 1); }

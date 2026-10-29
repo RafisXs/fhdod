@@ -1,8 +1,8 @@
-
-
-
-
-
+// Atualiza um banco criado por uma versão anterior (pode rodar várias vezes sem estragar nada).
+//   1) a pergunta de recomendação (1 a 10 com carinhas) passa da posição 5 para a 3;
+//   1b) perguntas sem limite de 5 (uma recomendação por setor, em qualquer posição) e setores ativáveis;
+//   2) avaliações ganham "rascunho" (cada resposta é gravada na hora, antes de enviar).
+// Num banco novo (schema.sql atual) não há nada a fazer.
 const { NPS_ORDEM } = require('./util');
 
 const temColuna = async (c, tabela, coluna) => {
@@ -26,16 +26,16 @@ async function migrar(pool) {
   const feitos = [];
   const c = await pool.getConnection();
   try {
-
+    // ---- 1) Pergunta de recomendação na 3ª posição (versão antiga: estava na 5ª) ----
     let clausulaNps = await textoCheck(c, 'ck_perguntas_nps');
     if (clausulaNps && /`ordem`\s*=\s*5\)/.test(clausulaNps)) {
       if (await temCheck(c, 'perguntas', 'ck_perguntas_ordem')) await c.query('ALTER TABLE perguntas DROP CHECK ck_perguntas_ordem');
-      await c.query('ALTER TABLE perguntas DROP CHECK ck_perguntas_nps');
+      await c.query('ALTER TABLE perguntas DROP CHECK ck_perguntas_nps'); // o antigo exigia a recomendação na 5ª posição
       clausulaNps = null;
       await c.beginTransaction();
       try {
-
-
+        // Passa por valores temporários porque (setor, ordem) é único. A recomendação vira a 3ª e as
+        // perguntas que estavam nas posições 3 e 4 descem uma posição, mantendo textos e opções.
         await c.query('UPDATE perguntas SET ordem = ordem + 10 WHERE ordem >= ?', [NPS_ORDEM]);
         await c.query("UPDATE perguntas SET ordem = IF(tipo = 'nps', ?, ordem - 10 + 1) WHERE ordem > 10", [NPS_ORDEM]);
         await c.commit();
@@ -43,8 +43,8 @@ async function migrar(pool) {
       feitos.push('pergunta de recomendação movida para a posição 3');
     }
 
-
-    if (clausulaNps) await c.query('ALTER TABLE perguntas DROP CHECK ck_perguntas_nps');
+    // ---- 1b) Perguntas sem limite de 5 e setores que o gerente pode criar ----
+    if (clausulaNps) await c.query('ALTER TABLE perguntas DROP CHECK ck_perguntas_nps'); // a posição deixa de ser fixa
     const [[tp]] = await c.query("SELECT DATA_TYPE AS t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'perguntas' AND COLUMN_NAME = 'ordem'");
     if (tp.t !== 'smallint') { await c.query('ALTER TABLE perguntas MODIFY ordem SMALLINT NOT NULL'); feitos.push('perguntas: sem limite de 5 por setor'); }
     const clausulaOrdem = await textoCheck(c, 'ck_perguntas_ordem');
@@ -60,7 +60,7 @@ async function migrar(pool) {
     const [[og]] = await c.query("SELECT COLUMN_TYPE AS t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'setores' AND COLUMN_NAME = 'origem'");
     if (!/cadastrado/.test(og.t)) await c.query("ALTER TABLE setores MODIFY origem ENUM('site_oficial','pesquisa_impressa','prototipo','cadastrado') NOT NULL");
 
-
+    // ---- 2) Rascunho: gravação de cada resposta na hora ----
     if (!(await temColuna(c, 'avaliacoes', 'status'))) {
       await c.query(`ALTER TABLE avaliacoes
         ADD COLUMN status ENUM('rascunho','concluida') NOT NULL DEFAULT 'concluida' AFTER setor_id,

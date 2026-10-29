@@ -1,10 +1,10 @@
-
+/* Área restrita: gerente, administrador de setor e visualizador. */
 var ME = null, TAB = "res", F = { p: "30", s: "", t: "", u: "" }, DATA = [], LOADERR = null, UPDT = null, CT = { st: "pendente", s: "" }, QS = "";
 var STL = { pendente: "Pendente", contatado: "Contatado", resolvido: "Resolvido" };
 function $(i) { return document.getElementById(i); }
-function isG() { return ME && ME.papel === "gerente"; }
-function isV() { return ME && ME.papel === "visualizador"; }
-function all() { return ME && !ME.setor_id; }
+function isG() { return ME && ME.papel === "gerente"; }            // gerente: mexe em tudo
+function isV() { return ME && ME.papel === "visualizador"; }       // visualizador: só consulta
+function all() { return ME && !ME.setor_id; }                       // vê todos os setores (gerente ou visualizador sem setor)
 function mySet() { return all() ? S : S.filter(function (s) { return s.id === ME.setor_id; }); }
 function papelTxt(u) {
   if (u.papel === "gerente") return "Gerente (todos os setores)";
@@ -82,7 +82,7 @@ function loadData(cb) {
 }
 function updBadge() { var n = DATA.filter(function (r) { return r.telefone && r.contato_status === "pendente"; }).length, b = $("t-ctt"); if (b) b.textContent = "Contatos" + (n ? " (" + n + ")" : ""); }
 
-
+/* ---------- Login e estrutura ---------- */
 function boot() {
   api("GET", "/api/me").then(function (me) { entrou(me); })
     .catch(function (e) { if (e.status === 401) loginView(); else erroTela(e); });
@@ -96,17 +96,24 @@ function entrou(me) {
 }
 
 function loginView(aviso) {
-  draw('<h1>Área restrita</h1><p class="mut">Acesso somente para a equipe autorizada: gerente, administradores de setor e visualizadores.</p><form id="f" novalidate>' + fld("em", "E-mail", "email", 'autocomplete="username" required') + fld("pw", "Senha", "password", 'autocomplete="current-password" required') + '<label class="sh"><input type="checkbox" id="sp"> Mostrar senha</label><p class="err" id="er" role="alert">' + esc(aviso || "") + '</p><button class="cta" type="submit">Entrar</button></form>');
+  draw('<div class="entrada"><section class="lg-card" aria-labelledby="lt"><h1 id="lt">Entrar na área restrita</h1><p class="mut lg-sub">Use o e-mail e a senha que a gerência cadastrou para você.</p><form id="f" novalidate>' +
+    fld("em", "E-mail", "email", 'autocomplete="username" autocapitalize="none" spellcheck="false" required') + fld("pw", "Senha", "password", 'autocomplete="current-password" required') +
+    '<p class="caps" id="caps" role="status" hidden>Caps Lock está ligado.</p><label class="sh"><input type="checkbox" id="sp"> Mostrar senha</label><p class="err" id="er" role="alert">' + esc(aviso || "") + '</p><button class="cta" id="go" type="submit">Entrar</button></form>' +
+    '<p class="mut lg-help">Esqueceu a senha? Peça ao gerente do hospital para definir uma nova na aba Equipe.</p></section>' +
+    '<aside class="lg-info" aria-label="Sobre a área restrita"><p class="lg-eyebrow">Experiência do paciente</p><h2>Painel de gestão da avaliação do atendimento</h2><p>Acompanhe as avaliações em tempo real, cuide das perguntas e entre em contato com quem teve um atendimento abaixo da média.</p><ul>' +
+    '<li><strong>Gerente</strong><span>Todos os setores, perguntas, equipe, QR Codes e TV Wall</span></li><li><strong>Administrador de setor</strong><span>Perguntas, resultados e contatos do seu setor</span></li><li><strong>Visualizador</strong><span>Somente consulta dos resultados, sem telefones</span></li></ul></aside></div>');
+  app.classList.add("login");
   showPw(["pw"]);
+  var em0 = $("em"); if (em0 && window.matchMedia && window.matchMedia("(min-width:700px)").matches) { try { em0.focus({ preventScroll: true }); } catch (x) {} }
+  $("pw").onkeyup = $("pw").onkeydown = function (e) { try { $("caps").hidden = !(e.getModifierState && e.getModifierState("CapsLock")); } catch (x) {} };
   $("f").onsubmit = function (e) {
     e.preventDefault();
-    var er = $("er"), em = $("em").value.trim(), pw = $("pw").value;
+    var er = $("er"), go = $("go"), em = $("em").value.trim(), pw = $("pw").value;
     if (!em || !pw) { er.textContent = "Preencha e-mail e senha."; return; }
-    er.textContent = "Entrando...";
+    er.textContent = ""; go.disabled = true; go.textContent = "Entrando...";
     api("POST", "/api/login", { email: em, senha: pw })
-      .then(function (me) { return me; })
       .then(entrou)
-      .catch(function (x) { er.textContent = x.message; });
+      .catch(function (x) { er.textContent = x.message; go.disabled = false; go.textContent = "Entrar"; });
   };
 }
 
@@ -126,7 +133,7 @@ function setTab(t) {
   if (t === "res") iniciarVivo();
 }
 
-
+/* ---------- Resultados ---------- */
 function exportUrl() { var q = ["p=" + F.p]; if (F.s) q.push("s=" + F.s); if (F.t) q.push("t=" + encodeURIComponent(F.t)); if (F.u) q.push("u=" + encodeURIComponent(F.u)); return "/api/admin/export.xlsx?" + q.join("&"); }
 function viewRes() {
   $("tab").innerHTML = '<div class="dtop"><p class="mut" id="upd" style="margin:0"></p><span class="sp"></span><button class="ghost" id="rf">Atualizar</button><button class="ghost" id="pt">Imprimir</button><a class="ghost" id="ex" href="#">Exportar Excel</a></div><p class="prn" id="prn"></p><div id="vivo"></div><div class="filters">' +
@@ -149,7 +156,7 @@ function updRes() {
 
 
 
-
+/* ---------- Resultado por pergunta (período e setor do filtro) ---------- */
 var RPQ_ABERTO = false;
 var TIPO_TXT = { escala: "Nota (1 a 5)", nps: "Recomendação (1 a 10)", positivos: "O que foi bom", negativos: "O que melhorar" };
 function carregarRPQ() {
@@ -167,7 +174,7 @@ function carregarRPQ() {
   }).catch(function (e) { falhou(e); });
 }
 
-
+/* ---------- Ao vivo: respostas já gravadas, mesmo de quem ainda não terminou ---------- */
 var VIVO = null;
 function pararVivo() { if (VIVO) { clearInterval(VIVO); VIVO = null; } }
 function iniciarVivo() { pararVivo(); carregarVivo(); VIVO = setInterval(function () { if (!document.hidden) carregarVivo(); }, 8000); }
@@ -193,12 +200,12 @@ function carregarVivo() {
   api("GET", "/api/admin/andamento").then(function (j) {
     if (TAB !== "res") return;
     paintVivo(j);
-
+    // Alguém terminou uma avaliação: atualiza os indicadores sozinho (sem mexer nos filtros)
     if (DATA.length < 5000 && j.concluidas !== DATA.length) loadData(function () { updBadge(); if (TAB === "res") updRes(); });
   }).catch(function (e) { if (falhou(e)) pararVivo(); });
 }
 
-
+/* ---------- Contatos (telefones de avaliações abaixo da média) ---------- */
 function viewCtt() {
   var rows = DATA.filter(function (r) { return r.telefone && (!CT.st || r.contato_status === CT.st) && (!CT.s || r.setor === CT.s); });
   $("tab").innerHTML = '<p class="mut">Pessoas que deram nota abaixo da média e autorizaram o contato. Ligue para entender o que houve e registre o resultado. Use o telefone somente para este fim.</p><div class="filters">' +
@@ -226,7 +233,7 @@ function viewCtt() {
   });
 }
 
-
+/* ---------- Perguntas (gerente: todos os setores; administrador: o seu setor) ---------- */
 var TIPOS = [["escala", "Nota de satisfação (5 níveis)"], ["positivos", "O que foi bom (escolha várias)"], ["negativos", "O que pode melhorar (escolha várias)"]];
 var QL = [], QREM = [], MAXQ = 30;
 function viewPer() {
@@ -292,8 +299,8 @@ function salvarQ() {
     .catch(function (e) { if (falhou(e)) return; qmsg(e.message); if ($("qsave")) $("qsave").disabled = false; });
 }
 
-
-
+/* ---------- Setores (só o gerente): criar, renomear, ordenar, ativar e desativar ---------- */
+// Endereço do site usado nos links e QR Codes (guardado só neste navegador)
 function baseUrl() {
   var b = ""; try { b = localStorage.getItem("fhdod_base") || ""; } catch (e) {}
   b = String(b).trim().replace(/\/+$/, "");
@@ -342,7 +349,7 @@ function drawSet() {
   };
 }
 
-
+/* ---------- Equipe (gerente: todas as contas; administrador: visualizadores do seu setor) ---------- */
 function viewEq() {
   api("GET", "/api/admin/usuarios").then(function (us) {
     var opts = isG() ? [["admin", "Administrador de setor"], ["visualizador", "Visualizador (somente leitura)"], ["gerente", "Gerente (todos os setores)"]] : [["visualizador", "Visualizador do meu setor"]];
@@ -379,7 +386,7 @@ function viewEq() {
   }).catch(function (e) { if (!falhou(e)) $("tab").innerHTML = '<div class="note">' + esc(e.message) + "</div>"; });
 }
 
-
+// Sessão sem uso por 15 minutos: sai sozinho
 var LASTACT = Date.now();
 ["click", "keydown", "touchstart"].forEach(function (ev) { document.addEventListener(ev, function () { LASTACT = Date.now(); }, true); });
 setInterval(function () { if (ME && Date.now() - LASTACT > 9e5) api("POST", "/api/logout").then(function () { ME = null; loginView("Sessão encerrada por inatividade."); }, function () {}); }, 30000);

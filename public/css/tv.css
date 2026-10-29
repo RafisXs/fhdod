@@ -1,12 +1,12 @@
-
-
-
+/* TV Wall para televisão de 32" (Full HD 1920x1080 ou HD 1366x768), vista de longe.
+   Tudo usa "rem" e o tamanho base acompanha a tela (1rem = 16px em 1920x1080), então a tela
+   inteira se ajusta a qualquer resolução 16:9 sem barra de rolagem. */
 :root{--bg:#0F1318;--card:#1A2028;--ink:#FFFFFF;--mut:#C3CBD5;--red:#FF6B6B;--ok:#4ADE80;--mid:#FBBF24;--bad:#FF6B6B;--line:#2E3640}
 html{font-size:min(calc(100vw / 120),calc(100vh / 67.5))}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 1.25rem/1.3 "Segoe UI",system-ui,Arial,sans-serif;display:flex;flex-direction:column;overflow:hidden}
-
+/* margem de segurança: muitas TVs cortam as bordas da imagem */
 .tvh{display:flex;align-items:center;gap:2rem;padding:.9rem 2.5rem;background:#fff;border-bottom:.4rem solid #D71E26;color:#20232A;flex:none}
 .tvh img{height:4.6rem;width:auto}
 .tvh h1{flex:1;margin:0;font-size:2.3rem;line-height:1.1}
@@ -43,5 +43,5 @@ main{flex:1;min-height:0;padding:1.3rem 2.5rem 1rem;display:grid;gap:1.3rem;grid
 .ab span{font-size:1.35rem;color:var(--mut)}
 .tvf{flex:none;padding:.5rem 2.5rem .7rem;font-size:1.05rem;color:var(--mut);border-top:.1rem solid var(--line)}
 
-
+/* Muitos setores (mais de 11): letras e barras menores para tudo caber sem rolagem */
 .rows.mini .hb{font-size:1.3rem}.rows.mini .hb b{font-size:1.4rem}.rows.mini .tr{height:1.1rem}

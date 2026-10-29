@@ -1,4 +1,4 @@
-
+// Regras de validação e gravação de uma avaliação enviada pelo paciente.
 const crypto = require('crypto');
 const { pool } = require('../db');
 const { asJson, inteiro, TURNOS, RESPONDENTES, TIPOS, ABAIXO_MEDIA, NPS_MAX_DETRATOR } = require('./util');
@@ -18,10 +18,10 @@ function validarData(s) {
 }
 
 
-
-
-
-
+// ---------------------------------------------------------------------------
+// Validação de UMA resposta (usada tanto na gravação em tempo real quanto no envio completo)
+// devolve a linha pronta para a tabela respostas: [pergunta_id, texto, tipo, valor_num, valores]
+// ---------------------------------------------------------------------------
 function linhaResposta(q, r) {
   if (q.tipo === 'nps') {
     const n = inteiro(r && r.n);
@@ -44,7 +44,7 @@ async function perguntasAtivas(db, setor) {
   return perg.map((q) => ({ ...q, opcoes: asJson(q.opcoes) }));
 }
 
-
+// Nota média (só perguntas de nota), recomendação e "abaixo da média" a partir das respostas gravadas
 function resumo(respostas) {
   const ns = respostas.filter((r) => r.tipo === 'escala').map((r) => r.valor_num);
   const np = respostas.find((r) => r.tipo === 'nps');
@@ -54,9 +54,9 @@ function resumo(respostas) {
   return { nps, media, abaixo };
 }
 
-
-
-
+// ---------------------------------------------------------------------------
+// Gravação em tempo real: o paciente responde, cada resposta vai para o banco na hora.
+// ---------------------------------------------------------------------------
 const VALIDADE_RASCUNHO_HORAS = 24;
 
 async function iniciarRascunho(setor) {
@@ -94,7 +94,7 @@ async function recalcular(db, avaliacaoId) {
   return { nps, media, abaixo };
 }
 
-
+// Grava (ou troca) uma resposta do rascunho
 async function gravarResposta(token, r) {
   const av = await buscarRascunho(pool, token);
   const perg = await perguntasAtivas(pool, av.setor_id);
@@ -102,7 +102,7 @@ async function gravarResposta(token, r) {
   await recalcular(pool, av.id);
 }
 
-
+// Finaliza: confere tudo, grava o contexto (dia, turno...) e o telefone, e libera para os painéis
 async function concluirRascunho(token, p) {
   if (!p || typeof p !== 'object') falha('Dados inválidos.');
   const conn = await pool.getConnection();
@@ -114,7 +114,7 @@ async function concluirRascunho(token, p) {
     if (!TIPOS.includes(p.tipo_atendimento)) falha('Tipo de atendimento inválido.');
     const data = validarData(p.data_atendimento);
     await conn.beginTransaction();
-
+    // Reenvio de segurança: se alguma gravação em tempo real falhou (internet), as respostas vêm de novo aqui
     if (p.respostas !== undefined) {
       if (!Array.isArray(p.respostas)) falha('Respostas inválidas.');
       for (const r of p.respostas) await gravarNaLinha(conn, av, perg, r);
@@ -137,10 +137,10 @@ async function concluirRascunho(token, p) {
       [data, p.turno, p.respondente, p.tipo_atendimento, telefone || null, telefone ? 1 : 0, av.id]);
     await conn.commit();
     return { id: av.id, nps, media, abaixo };
-  } catch (e) { try { await conn.rollback(); } catch {   } throw e; } finally { conn.release(); }
+  } catch (e) { try { await conn.rollback(); } catch { /* sem transação aberta */ } throw e; } finally { conn.release(); }
 }
 
-
+// Envio completo de uma vez (usado pela API e pelos testes; a pesquisa usa a gravação em tempo real)
 async function registrarAvaliacao(p) {
   if (!p || typeof p !== 'object') falha('Dados inválidos.');
   const setor = String(p.setor || '');
@@ -155,7 +155,7 @@ async function registrarAvaliacao(p) {
   if (!TIPOS.includes(p.tipo_atendimento)) falha('Tipo de atendimento inválido.');
   const data = validarData(p.data_atendimento);
 
-
+  // Respostas: cada pergunta ativa (exceto a de recomendação) no máximo uma vez
   const lista = Array.isArray(p.respostas) ? p.respostas : falha('Respostas inválidas.');
   const vistas = new Set();
   const linhas = [];
@@ -178,7 +178,7 @@ async function registrarAvaliacao(p) {
   const media = qtd ? Math.round((soma / qtd) * 100) / 100 : null;
   const abaixo = (media !== null && media < ABAIXO_MEDIA) || nps <= NPS_MAX_DETRATOR;
 
-
+  // Telefone: só aceito quando a nota é abaixo da média e há autorização expressa
   let telefone = String(p.telefone || '').replace(/\D/g, '');
   if (telefone && !abaixo) telefone = '';
   if (telefone) {
@@ -201,13 +201,13 @@ async function registrarAvaliacao(p) {
   } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
 }
 
-
+// Lê avaliações (já no formato usado pelo painel), respeitando o alcance do perfil.
 async function carregarAvaliacoes(user, { where = '', params = [], limite = 5000 } = {}) {
   const w = ["a.status = 'concluida'"];
   const pr = [];
   const so = escopo(user);
   if (so) { w.push('a.setor_id = ?'); pr.push(so); }
-
+  // Visualizador nunca recebe telefone nem anotações de contato
   const ct = user.papel === 'visualizador' ? 'NULL AS telefone, NULL AS contato_status, NULL AS contato_obs' : 'a.telefone, a.contato_status, a.contato_obs';
   if (where) { w.push(where); pr.push(...params); }
   const [rows] = await pool.query(

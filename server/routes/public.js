@@ -1,4 +1,4 @@
-
+// Rotas públicas: pesquisa de satisfação, login e TV Wall.
 const express = require('express');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
@@ -11,13 +11,13 @@ const { asJson, erro, ABAIXO_MEDIA, NPS_MAX_DETRATOR } = require('../lib/util');
 const r = express.Router();
 const limite = (max, minutos, msg) => rateLimit({ windowMs: minutos * 60 * 1000, limit: max, standardHeaders: true, legacyHeaders: false, message: { erro: msg } });
 
-
+// Teste de conexão com o banco
 r.get('/saude', async (req, res) => {
   await pool.query('SELECT 1');
   res.json({ ok: true, mensagem: 'Banco de dados conectado com sucesso.' });
 });
 
-
+// Setores e perguntas ativas (a pesquisa monta as telas com isso)
 r.get('/perguntas', async (req, res) => {
   const [setores] = await pool.query('SELECT id, nome FROM setores WHERE ativo = 1 ORDER BY ordem');
   const [perg] = await pool.query('SELECT p.id, p.setor_id, p.ordem, p.texto, p.tipo, p.opcoes FROM perguntas p JOIN setores s ON s.id = p.setor_id WHERE p.ativa = 1 AND s.ativo = 1 ORDER BY p.setor_id, p.ordem');
@@ -28,7 +28,7 @@ r.get('/perguntas', async (req, res) => {
   });
 });
 
-
+// Envio completo de uma vez (alternativa à gravação em tempo real; usada pela API e pelos testes)
 r.post('/avaliacoes', limite(200, 15, 'Muitos envios deste endereço. Tente novamente em alguns minutos.'), async (req, res) => {
   try {
     await registrarAvaliacao(req.body);
@@ -39,8 +39,8 @@ r.post('/avaliacoes', limite(200, 15, 'Muitos envios deste endereço. Tente nova
   }
 });
 
-
-
+// ---- Gravação em tempo real: cada resposta vai para o banco assim que o paciente responde ----
+// Os limites são por endereço; o hospital pode ter muitos pacientes saindo do mesmo Wi-Fi.
 const aoValidar = (fn) => async (req, res) => {
   try { await fn(req, res); } catch (e) {
     if (e instanceof ErroValidacao) return erro(res, 400, e.message);
@@ -60,14 +60,14 @@ r.post('/avaliacoes/:token/concluir', limite(600, 15, 'Muitos envios deste ender
   res.status(201).json({ ok: true });
 }));
 
-
+// ---- Login ----
 const HASH_FALSO = bcrypt.hashSync('senha-falsa-para-igualar-o-tempo', 12);
 r.post('/login', limite(10, 15, 'Muitas tentativas de login. Aguarde 15 minutos.'), async (req, res) => {
   const email = String((req.body && req.body.email) || '').trim().toLowerCase();
   const senha = String((req.body && req.body.senha) || '');
   const [rows] = await pool.query('SELECT id, nome, email, senha_hash, papel, setor_id, ativo FROM usuarios WHERE email = ?', [email]);
   const u = rows[0];
-  const ok = await bcrypt.compare(senha, u ? u.senha_hash : HASH_FALSO);
+  const ok = await bcrypt.compare(senha, u ? u.senha_hash : HASH_FALSO); // mesmo tempo com ou sem usuário
   if (!u || !u.ativo || !ok) return erro(res, 401, 'E-mail ou senha incorretos.');
   emitirLogin(res, u);
   res.json({ nome: u.nome, email: u.email, papel: u.papel, setor_id: u.setor_id });
@@ -80,7 +80,7 @@ r.get('/me', exigirLogin, (req, res) => {
   res.json({ nome, email, papel, setor_id });
 });
 
-
+// ---- TV Wall: só números agregados, nunca dados de pacientes ----
 r.get('/tv', async (req, res) => {
   const token = process.env.TV_TOKEN;
   if (token) {

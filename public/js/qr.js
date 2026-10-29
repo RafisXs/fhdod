@@ -1,11 +1,11 @@
-
+/* Cartaz com QR Code de cada setor. Tudo é gerado no próprio navegador (nenhum site externo). */
 (function () {
   var $ = function (i) { return document.getElementById(i); };
   var params = new URLSearchParams(location.search);
   var SETOR = (params.get("setor") || "").replace(/[^a-z]/g, "").slice(0, 10);
   var NOME = (params.get("nome") || "").slice(0, 80);
   var TODOS = params.get("todos") === "1" || !SETOR;
-  var LISTA = [];
+  var LISTA = []; // setores mostrados: [{id, nome}]
 
   function baseValida(s) { s = String(s || "").trim().replace(/\/+$/, ""); return /^https?:\/\/[^\s<>"']+$/i.test(s) ? s : ""; }
   function guardada() { try { return localStorage.getItem("fhdod_base") || ""; } catch (e) { return ""; } }
@@ -14,7 +14,7 @@
 
   function link(id) { return BASE + "/?setor=" + id; }
 
-
+  // Desenha o QR Code como SVG (módulos escuros em um único caminho, com margem de 4 módulos)
   function qrDe(texto) {
     var q = qrcode(0, "M"); q.addData(texto); q.make();
     var n = q.getModuleCount(), m = 4, d = "";
@@ -74,7 +74,7 @@
     baixar(arquivo() + ".png", cv.toDataURL("image/png"));
   };
 
-
+  // Monta a lista: um setor (veio do painel) ou todos os ativos
   if (!TODOS) { LISTA = [{ id: SETOR, nome: NOME || SETOR }]; desenhar(); }
   else {
     fetch("/api/perguntas", { headers: { "X-Requested-With": "fhdod" } }).then(function (r) { return r.json(); })

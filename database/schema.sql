@@ -1,31 +1,31 @@
+-- =====================================================================
+-- Avaliação do Atendimento - FHDOD (protótipo acadêmico)
+-- Banco: MySQL 8.0+   |   Execute no MySQL Workbench (raio ⚡) ou:
+--   mysql -u root -p < database/schema.sql
+-- Pode ser executado mais de uma vez sem apagar dados.
+-- =====================================================================
 
-
-
-
-
-
-
-
+-- Garante que acentos (ex.: "Plano de Saúde") sejam gravados certos em qualquer cliente MySQL
 SET NAMES utf8mb4;
 
 CREATE DATABASE IF NOT EXISTS hospital_experiencia
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE hospital_experiencia;
 
+-- Para recomeçar do zero (APAGA TUDO), tire o "-- " das linhas abaixo:
+-- SET FOREIGN_KEY_CHECKS = 0;
+-- DROP TABLE IF EXISTS respostas, avaliacoes, perguntas, usuarios, setores;
+-- SET FOREIGN_KEY_CHECKS = 1;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+-- ---------------------------------------------------------------------
+-- 1) SETORES: pontos de entrada da pesquisa (um QR Code por setor)
+--    origem: de onde veio o nome do setor
+--      site_oficial      = serviço apresentado no site oficial da FHDOD
+--      pesquisa_impressa = consta na pesquisa de satisfação impressa do hospital
+--      prototipo         = setor definido para o protótipo acadêmico
+--      cadastrado        = setor criado depois pelo gerente, no painel
+--    ativo: 0 = some da pesquisa e da TV, mas o histórico de avaliações é mantido
+-- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS setores (
   id     VARCHAR(10)  NOT NULL,
   nome   VARCHAR(60)  NOT NULL,
@@ -35,15 +35,15 @@ CREATE TABLE IF NOT EXISTS setores (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB;
 
-
-
-
-
-
-
-
-
-
+-- ---------------------------------------------------------------------
+-- 2) USUARIOS: três perfis
+--    gerente      = mexe em tudo (todos os setores, todas as perguntas, equipe)
+--    admin        = administrador de UM setor (perguntas, contatos e resultados
+--                   do setor; cria visualizadores do próprio setor).
+--                   Cada setor tem no máximo 1 administrador ATIVO.
+--    visualizador = somente leitura dos resultados (nunca vê telefones);
+--                   setor_id vazio = vê todos os setores
+-- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS usuarios (
   id         INT          NOT NULL AUTO_INCREMENT,
   nome       VARCHAR(100) NOT NULL,
@@ -53,8 +53,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
   setor_id   VARCHAR(10)  NULL,
   ativo      TINYINT(1)   NOT NULL DEFAULT 1,
   criado_em  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-
+  -- Coluna calculada que garante "1 administrador ativo por setor":
+  -- só tem valor para admins ativos, e o índice abaixo não deixa repetir.
   admin_setor VARCHAR(10) GENERATED ALWAYS AS (IF(papel = 'admin' AND ativo = 1, setor_id, NULL)) STORED,
   PRIMARY KEY (id),
   UNIQUE KEY uk_usuarios_email (email),
@@ -66,12 +66,12 @@ CREATE TABLE IF NOT EXISTS usuarios (
     (papel = 'visualizador'))
 ) ENGINE=InnoDB;
 
-
-
-
-
-
-
+-- ---------------------------------------------------------------------
+-- 3) PERGUNTAS: quantas o setor precisar (o painel limita em 30 por setor), na ordem escolhida
+--    tipos: escala (5 níveis) | positivos | negativos (escolha de várias opções) | nps
+--    nps = recomendação de 1 a 10 com carinhas: cada setor tem exatamente UMA, que não
+--    pode ser desativada nem excluída (só o texto e a posição mudam). Por padrão fica na 3ª posição.
+-- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS perguntas (
   id       INT          NOT NULL AUTO_INCREMENT,
   setor_id VARCHAR(10)  NOT NULL,
@@ -89,13 +89,13 @@ CREATE TABLE IF NOT EXISTS perguntas (
   CONSTRAINT ck_perguntas_nps_ativa CHECK (tipo <> 'nps' OR ativa = 1)
 ) ENGINE=InnoDB;
 
-
-
-
-
-
-
-
+-- ---------------------------------------------------------------------
+-- 4) AVALIACOES: uma linha por avaliação (anônima)
+--    status: 'rascunho' = o paciente está respondendo (cada resposta é gravada na hora)
+--            'concluida' = enviada. Os painéis e a TV contam só as concluídas.
+--    token: identifica o rascunho no navegador do paciente (some do uso depois de concluir)
+--    telefone: opcional, só quando a nota é abaixo da média e há autorização
+-- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS avaliacoes (
   id                   BIGINT       NOT NULL AUTO_INCREMENT,
   criado_em            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -129,10 +129,10 @@ CREATE TABLE IF NOT EXISTS avaliacoes (
     AND turno IS NOT NULL AND respondente IS NOT NULL AND tipo_atendimento IS NOT NULL))
 ) ENGINE=InnoDB;
 
-
-
-
-
+-- ---------------------------------------------------------------------
+-- 5) RESPOSTAS: uma linha por pergunta respondida. Guarda o texto da
+--    pergunta da época, para o histórico não mudar quando ela for editada.
+-- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS respostas (
   id             BIGINT       NOT NULL AUTO_INCREMENT,
   avaliacao_id   BIGINT       NOT NULL,
@@ -148,9 +148,9 @@ CREATE TABLE IF NOT EXISTS respostas (
   CONSTRAINT fk_respostas_pergunta  FOREIGN KEY (pergunta_id)  REFERENCES perguntas (id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
-
-
-
+-- =====================================================================
+-- DADOS INICIAIS
+-- =====================================================================
 INSERT IGNORE INTO setores (id, nome, ordem, origem) VALUES
   ('rec',  'Recepção',                  1, 'prototipo'),
   ('pa',   'Pronto Atendimento',        2, 'site_oficial'),
@@ -163,7 +163,7 @@ INSERT IGNORE INTO setores (id, nome, ordem, origem) VALUES
   ('ob',   'Atendimento com Obstetrícia', 9, 'pesquisa_impressa'),
   ('tr',   'Atendimento com Traumato', 10, 'pesquisa_impressa');
 
-
+-- Perguntas 1 e 2 de cada setor (escala de satisfação)
 INSERT IGNORE INTO perguntas (setor_id, ordem, texto, tipo) VALUES
   ('rec', 1, 'Como foi o atendimento na recepção?', 'escala'),
   ('rec', 2, 'As informações que você recebeu foram claras?', 'escala'),
@@ -186,8 +186,8 @@ INSERT IGNORE INTO perguntas (setor_id, ordem, texto, tipo) VALUES
   ('tr', 1, 'Como foi o atendimento médico?', 'escala'),
   ('tr', 2, 'Como foi o tempo de espera?', 'escala');
 
-
-
+-- Perguntas 3, 4 e 5 (iguais em todos os setores; depois podem ser editadas):
+--   3 = recomendação de 1 a 10 | 4 = pontos positivos | 5 = pontos a melhorar
 INSERT IGNORE INTO perguntas (setor_id, ordem, texto, tipo, opcoes)
 SELECT id, 4, 'O que foi bom no atendimento?', 'positivos',
        JSON_ARRAY('Equipe atenciosa','Rapidez','Informações claras','Ambiente limpo','Conforto','Respeito')
@@ -202,8 +202,11 @@ INSERT IGNORE INTO perguntas (setor_id, ordem, texto, tipo, opcoes)
 SELECT id, 3, 'De 1 a 10, qual a chance de você recomendar o hospital a um amigo ou familiar?', 'nps', NULL
 FROM setores;
 
-
+-- Internação Clínica tem a opção extra "Alimentação" (só se ainda não existir)
 UPDATE perguntas
    SET opcoes = JSON_ARRAY_APPEND(opcoes, '$', 'Alimentação')
  WHERE setor_id = 'ic' AND tipo = 'positivos'
    AND JSON_SEARCH(opcoes, 'one', 'Alimentação') IS NULL;
+
+-- O primeiro gerente é criado pelo terminal, com senha protegida:
+--   npm run criar-gerente

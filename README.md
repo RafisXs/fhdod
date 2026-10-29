@@ -4,7 +4,9 @@ Sistema web para coletar a avaliação do atendimento por setor (pesquisa de sat
 
 > **Projeto acadêmico / protótipo de solução** para a Fundação Hospitalar Dr. Oswaldo Diesel (FHDOD), Três Coroas - RS. **Não é o sistema oficial da instituição.** Os dados exibidos pelo sistema podem ser demonstrativos.
 
-- **Autores:** `Rafael Bazotti` e `Pedro Goetz`
+- **Autores:** `[Nome 1]` e `[Nome 2]`
+- **Documentação online da API:** `[colar o link aqui]`
+- **Quadro Kanban:** `[colar o link aqui]`
 
 ## Sumário
 
@@ -53,6 +55,7 @@ Sistema web para coletar a avaliação do atendimento por setor (pesquisa de sat
 **Painel da equipe em monitor de computador**
 
 - A partir de 1100 px de largura o painel usa o espaço do monitor: indicadores numa linha, gráficos lado a lado e tabela por setor em largura total. No celular e no tablet continua em coluna única.
+- **Tela de login para computador (`/admin`):** a partir de 1000 px ficam duas colunas (apresentação dos perfis + formulário), campo de e-mail já selecionado, aviso de Caps Lock ligado, opção "Mostrar senha" e botão que bloqueia cliques repetidos. No celular o formulário vem primeiro e ocupa a largura toda.
 
 ## Perfis de acesso
 

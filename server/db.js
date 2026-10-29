@@ -1,4 +1,4 @@
-
+// Conexão com o MySQL (pool). As credenciais vêm do arquivo .env.
 require('dotenv').config();
 const mysql = require('mysql2/promise');
 
@@ -16,9 +16,9 @@ const pool = mysql.createPool({
   decimalNumbers: true,
 });
 
-pool.pool.on('connection', (c) => c.query("SET time_zone = '+00:00'"));
+pool.pool.on('connection', (c) => c.query("SET time_zone = '+00:00'")); // horários sempre em UTC
 
-
+// Traduz os erros mais comuns do MySQL em dicas fáceis de entender.
 function explicarErro(e) {
   const dicas = {
     ECONNREFUSED: 'O MySQL não está rodando ou a porta/host estão errados. Inicie o serviço do MySQL e confira DB_HOST e DB_PORT no .env.',

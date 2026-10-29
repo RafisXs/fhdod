@@ -1,4 +1,4 @@
-
+// Rotas da área restrita (gerente, administrador de setor e visualizador).
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const ExcelJS = require('exceljs');
@@ -14,13 +14,13 @@ const SETOR_RE = /^[a-z]{2,10}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const equipe = exigirPapel('gerente', 'admin');
 
-
+// ---------- Avaliações (painel): todos os perfis, dentro do seu alcance ----------
 r.get('/avaliacoes', async (req, res) => res.json(await carregarAvaliacoes(req.user)));
 
-
-
-
-const AO_VIVO_SEGUNDOS = 30 * 60;
+// ---------- Ao vivo: avaliações em andamento ou abandonadas (cada resposta já está no banco) ----------
+// Mostra quem está respondendo agora e o que já respondeu, mesmo sem terminar o formulário.
+// Nunca traz telefone (o telefone só existe depois de enviar). Respeita o setor do perfil.
+const AO_VIVO_SEGUNDOS = 30 * 60; // sem mexer há mais de 30 min = abandonada
 r.get('/andamento', async (req, res) => {
   const so = escopo(req.user);
   const filtro = so ? ' AND a.setor_id = ?' : '';
@@ -46,7 +46,7 @@ r.get('/andamento', async (req, res) => {
   res.json({ concluidas: Number(c.n), itens: [...mapa.values()] });
 });
 
-
+// ---------- Contatos: telefone das avaliações abaixo da média (gerente e admin) ----------
 r.patch('/avaliacoes/:id/contato', equipe, async (req, res) => {
   const id = inteiro(req.params.id);
   const [rows] = await pool.query('SELECT setor_id, telefone FROM avaliacoes WHERE id = ?', [id]);
@@ -63,7 +63,7 @@ r.patch('/avaliacoes/:id/contato', equipe, async (req, res) => {
   res.json({ ok: true });
 });
 
-
+// ---------- Perguntas (gerente: todos os setores; admin: o seu setor) ----------
 r.get('/perguntas/:setor', equipe, async (req, res) => {
   const setor = String(req.params.setor);
   if (!SETOR_RE.test(setor) || !podeSetor(req.user, setor)) return erro(res, 403, 'Você não gerencia este setor.');
@@ -71,10 +71,10 @@ r.get('/perguntas/:setor', equipe, async (req, res) => {
   res.json(rows.map((q) => ({ ...q, opcoes: asJson(q.opcoes), ativa: !!q.ativa })));
 });
 
-
-
-
-
+// Salva a lista completa de perguntas do setor, na ordem em que vem:
+//  - itens com "id" atualizam a pergunta; itens sem "id" são perguntas novas;
+//  - "remover: true" exclui a pergunta (as respostas já dadas ficam, com o texto da época);
+//  - a pergunta de recomendação (nps) não some, não é desativada e não muda de tipo.
 r.put('/perguntas/:setor', equipe, async (req, res) => {
   const setor = String(req.params.setor);
   if (!SETOR_RE.test(setor) || !podeSetor(req.user, setor)) return erro(res, 403, 'Você não gerencia este setor.');
@@ -83,7 +83,7 @@ r.put('/perguntas/:setor', equipe, async (req, res) => {
   const porId = new Map(atuais.map((q) => [q.id, q]));
   const lista = Array.isArray(req.body && req.body.perguntas) ? req.body.perguntas : null;
   if (!lista || !lista.length) return erro(res, 400, 'Dados inválidos.');
-
+  // A lista precisa trazer todas as perguntas atuais (evita apagar sem querer com a tela desatualizada)
   const idsEnviados = lista.map((q) => inteiro(q && q.id)).filter((n) => Number.isInteger(n));
   if (new Set(idsEnviados).size !== idsEnviados.length || idsEnviados.length !== atuais.length || atuais.some((q) => !idsEnviados.includes(q.id))) {
     return erro(res, 409, 'A lista de perguntas mudou enquanto você editava. Recarregue a página e tente de novo.');
@@ -94,7 +94,7 @@ r.put('/perguntas/:setor', equipe, async (req, res) => {
     const id = inteiro(q.id);
     const atual = Number.isInteger(id) ? porId.get(id) : null;
     if (q.remover === true) {
-      if (!atual) continue;
+      if (!atual) continue; // pergunta nova que o usuário descartou antes de salvar
       if (atual.tipo === 'nps') return erro(res, 400, 'A pergunta de recomendação (1 a 10) não pode ser excluída. Você pode mudar o texto e a posição.');
       excluir.push(atual.id);
       continue;
@@ -121,7 +121,7 @@ r.put('/perguntas/:setor', equipe, async (req, res) => {
   try {
     await conn.beginTransaction();
     for (const id of excluir) await conn.query('DELETE FROM perguntas WHERE id = ? AND setor_id = ?', [id, setor]);
-
+    // Posições temporárias (500+) porque (setor, posição) é único; depois voltam para 1, 2, 3...
     for (let i = 0; i < mantidas.length; i++) {
       const q = mantidas[i], tmp = 500 + i + 1;
       if (q.id) await conn.query('UPDATE perguntas SET texto = ?, tipo = ?, opcoes = ?, ativa = ?, ordem = ? WHERE id = ? AND setor_id = ?', [q.texto, q.tipo, q.opcoes, q.ativa, tmp, q.id, setor]);
@@ -133,8 +133,8 @@ r.put('/perguntas/:setor', equipe, async (req, res) => {
   res.json({ ok: true });
 });
 
-
-
+// ---------- Setores (todos os perfis leem; só o gerente cria e altera) ----------
+// Setor desativado some da pesquisa e da TV, mas o histórico fica. Não há exclusão definitiva.
 r.get('/setores', async (req, res) => {
   const [rows] = await pool.query(
     `SELECT s.id, s.nome, s.ordem, s.ativo, s.origem,
@@ -176,7 +176,7 @@ r.post('/setores', exigirPapel('gerente'), async (req, res) => {
     }
     await conn.commit();
     res.status(201).json({ id, nome });
-  } catch (e) { try { await conn.rollback(); } catch {   } throw e; } finally { conn.release(); }
+  } catch (e) { try { await conn.rollback(); } catch { /* sem transação */ } throw e; } finally { conn.release(); }
 });
 
 r.patch('/setores/:id', exigirPapel('gerente'), async (req, res) => {
@@ -218,7 +218,7 @@ r.patch('/setores/:id', exigirPapel('gerente'), async (req, res) => {
   res.json({ ok: true });
 });
 
-
+// ---------- Resultado por pergunta (nota média, recomendação e opções mais escolhidas) ----------
 r.get('/resultado-perguntas', async (req, res) => {
   const q = req.query, w = ["a.status = 'concluida'"], p = [];
   const so = escopo(req.user);
@@ -251,7 +251,7 @@ r.get('/resultado-perguntas', async (req, res) => {
   res.json({ itens });
 });
 
-
+// ---------- Exportação em Excel (todos os perfis, dentro do seu alcance) ----------
 r.get('/export.xlsx', async (req, res) => {
   const q = req.query;
   const w = [], p = [];
@@ -305,9 +305,9 @@ r.get('/export.xlsx', async (req, res) => {
   res.end();
 });
 
-
-
-
+// ---------- Equipe ----------
+//   gerente: vê e gerencia todas as contas
+//   admin:   vê e gerencia só os visualizadores do próprio setor
 const PAPEIS = ['gerente', 'admin', 'visualizador'];
 
 function podeGerir(user, alvo) {
@@ -323,7 +323,7 @@ r.get('/usuarios', equipe, async (req, res) => {
   res.json(rows.map((u) => ({ ...u, ativo: !!u.ativo })));
 });
 
-
+// alvo = usuário que está sendo alterado (null na criação)
 async function validarUsuario(b, alvo) {
   const out = {};
   if (!alvo || b.nome !== undefined) { out.nome = String(b.nome || '').trim(); if (out.nome.length < 3 || out.nome.length > 100) throw new Error('Informe o nome (3 a 100 caracteres).'); }
@@ -336,7 +336,7 @@ async function validarUsuario(b, alvo) {
     if (papel === 'gerente') out.setor_id = null;
     else {
       const sid = String(b.setor_id === undefined ? (alvo ? alvo.setor_id : '') : b.setor_id || '');
-      if (papel === 'visualizador' && !sid) out.setor_id = null;
+      if (papel === 'visualizador' && !sid) out.setor_id = null; // visualizador sem setor = vê todos
       else {
         const [s] = await pool.query('SELECT id FROM setores WHERE id = ?', [sid]);
         if (!s[0]) throw new Error('Escolha o setor.');
@@ -356,7 +356,7 @@ function erroDuplicado(e, res) {
 r.post('/usuarios', equipe, async (req, res) => {
   let b = req.body || {};
   if (req.user.papel === 'admin') {
-
+    // O administrador só cria visualizadores, e sempre do próprio setor
     if (b.papel !== undefined && b.papel !== 'visualizador') return erro(res, 403, 'Você só pode criar contas de visualizador do seu setor.');
     b = { ...b, papel: 'visualizador', setor_id: req.user.setor_id };
   }
@@ -374,7 +374,7 @@ r.patch('/usuarios/:id', equipe, async (req, res) => {
   const alvo = rows[0];
   if (!alvo || !podeGerir(req.user, alvo)) return erro(res, 404, 'Usuário não encontrado.');
   const b = { ...(req.body || {}) };
-  if (req.user.papel === 'admin') { delete b.papel; delete b.setor_id; }
+  if (req.user.papel === 'admin') { delete b.papel; delete b.setor_id; } // admin não muda perfil nem setor
   let d;
   try { d = await validarUsuario(b, alvo); } catch (e) { return erro(res, 400, e.message); }
   const novoAtivo = b.ativo === undefined ? !!alvo.ativo : !!b.ativo;

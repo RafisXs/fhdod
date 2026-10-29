@@ -13,7 +13,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.45 "Segoe UI",sy
 .dica{margin:8px 0 0;color:var(--mut);font-size:.88rem}
 main{padding:18px 12px 40px;display:grid;gap:18px;justify-items:center}
 .load{color:var(--mut)}
-
+/* Cartaz: proporção de uma folha A4 em pé */
 .cartaz{background:#fff;width:min(100%,794px);aspect-ratio:210/297;border:1px solid var(--line);border-top:14px solid var(--red);border-radius:6px;padding:4.5% 7%;display:flex;flex-direction:column;align-items:center;text-align:center;box-shadow:0 2px 10px rgba(32,35,42,.1)}
 .cartaz img.logo{height:clamp(40px,9vw,78px);width:auto}
 .cartaz h2{margin:3.5% 0 0;font-size:clamp(22px,5.4vw,44px);line-height:1.15}
