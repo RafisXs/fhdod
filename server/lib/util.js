@@ -14,14 +14,14 @@ const STATUS = ['pendente', 'contatado', 'resolvido'];
 const ABAIXO_MEDIA = 3; // média das perguntas de nota abaixo disso = abaixo da média
 const NPS_ORDEM = 3; // posição fixa da pergunta de recomendação (carinhas de 1 a 10)
 const MAX_PERGUNTAS = 30; // limite técnico por setor (evita pesquisa interminável e abuso)
-const NPS_TEXTO_PADRAO = 'De 1 a 10, qual a chance de você recomendar o hospital a um amigo ou familiar?';
+const NPS_TEXTO_PADRAO = 'Em uma escala de 1 a 10, qual é a probabilidade de você recomendar este hospital a um familiar ou amigo?';
 // Perguntas de um setor recém-criado (o gerente ou o admin do setor edita depois)
 const PERGUNTAS_PADRAO = [
-  { tipo: 'escala', texto: 'Como foi o atendimento da equipe?' },
-  { tipo: 'escala', texto: 'Como foi o tempo de espera?' },
+  { tipo: 'escala', texto: 'Como você avalia o atendimento prestado pela equipe?' },
+  { tipo: 'escala', texto: 'Como você avalia o tempo de espera para o atendimento?' },
   { tipo: 'nps', texto: NPS_TEXTO_PADRAO },
-  { tipo: 'positivos', texto: 'O que foi bom no atendimento?', opcoes: ['Equipe atenciosa', 'Rapidez', 'Informações claras', 'Ambiente limpo', 'Conforto', 'Respeito'] },
-  { tipo: 'negativos', texto: 'O que pode melhorar?', opcoes: ['Demora', 'Falta de informação', 'Atendimento frio', 'Limpeza', 'Estrutura e conforto', 'Nada a melhorar'] },
+  { tipo: 'positivos', texto: 'Quais aspectos do atendimento você considera positivos?', opcoes: ['Equipe atenciosa', 'Rapidez', 'Informações claras', 'Ambiente limpo', 'Conforto', 'Respeito'] },
+  { tipo: 'negativos', texto: 'Quais aspectos do atendimento precisam ser aprimorados?', opcoes: ['Demora', 'Falta de informação', 'Atendimento frio', 'Limpeza', 'Estrutura e conforto', 'Nada a melhorar'] },
 ];
 const NPS_MAX_DETRATOR = 6; // recomendação até 6 também conta como abaixo da média
 

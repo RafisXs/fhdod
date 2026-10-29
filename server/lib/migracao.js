@@ -83,6 +83,13 @@ async function migrar(pool) {
       await c.query('ALTER TABLE respostas ADD UNIQUE KEY uk_respostas_avaliacao_pergunta (avaliacao_id, pergunta_id)');
       feitos.push('respostas: uma resposta por pergunta');
     }
+    // Atualiza apenas os enunciados padrão, mantendo textos personalizados e o histórico.
+    const enunciados = require('./enunciados');
+    const [atualizadas] = await c.query(
+      `UPDATE perguntas SET texto = CASE texto ${enunciados.map(() => 'WHEN ? THEN ?').join(' ')} ELSE texto END
+       WHERE BINARY texto IN (${enunciados.map(() => '?').join(',')})`,
+      [...enunciados.flat(), ...enunciados.map(([anterior]) => anterior)]);
+    if (atualizadas.affectedRows) feitos.push('enunciados padrão revisados');
   } finally { c.release(); }
   return feitos;
 }

@@ -33,7 +33,7 @@
     var c = document.createElement("p"); c.className = "como"; c.textContent = "Aponte a câmera do celular para o QR Code e conte como foi. Leva cerca de 1 minuto."; sec.appendChild(c);
     var a = document.createElement("p"); a.className = "anon"; a.textContent = "Sua avaliação é anônima e ajuda o hospital a melhorar."; sec.appendChild(a);
     var l = document.createElement("p"); l.className = "url"; l.textContent = u; sec.appendChild(l);
-    var p = document.createElement("p"); p.className = "proto"; p.textContent = "Projeto acadêmico: protótipo para a Fundação Hospitalar Dr. Oswaldo Diesel, não é o sistema oficial."; sec.appendChild(p);
+    var p = document.createElement("p"); p.className = "proto"; p.textContent = "Fundação Hospitalar Dr. Oswaldo Diesel · Avaliação do Atendimento"; sec.appendChild(p);
     sec._qr = qr; sec._url = u;
     return sec;
   }

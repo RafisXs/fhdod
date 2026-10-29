@@ -1,5 +1,5 @@
 // Servidor da aplicação: serve as páginas e a API.
-require('dotenv').config();
+require('./config');
 const path = require('path');
 const express = require('express');
 const helmet = require('helmet');

@@ -1,14 +1,15 @@
 {
   "name": "avaliacao-fhdod",
   "version": "1.1.0",
-  "description": "Sistema de avaliação do atendimento (protótipo acadêmico) para a Fundação Hospitalar Dr. Oswaldo Diesel",
+  "description": "Sistema de avaliação do atendimento para a Fundação Hospitalar Dr. Oswaldo Diesel",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "criar-gerente": "node server/scripts/criar-gerente.js",
     "migrar": "node server/scripts/migrar.js",
-    "test": "node --test tests/api.test.js"
+    "test": "node --test tests/api.test.js",
+    "test:painel": "node tests/painel.test.cjs"
   },
   "engines": {
     "node": ">=18"

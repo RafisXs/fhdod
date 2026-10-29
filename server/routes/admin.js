@@ -224,6 +224,8 @@ r.get('/resultado-perguntas', async (req, res) => {
   const so = escopo(req.user);
   if (so) { w.push('a.setor_id = ?'); p.push(so); } else if (SETOR_RE.test(String(q.s || ''))) { w.push('a.setor_id = ?'); p.push(q.s); }
   if (['7', '30', '90'].includes(String(q.p))) { w.push('a.criado_em >= DATE_SUB(NOW(), INTERVAL ? DAY)'); p.push(Number(q.p)); }
+  if (TURNOS.includes(q.t)) { w.push('a.turno = ?'); p.push(q.t); }
+  if (TIPOS.includes(q.u)) { w.push('a.tipo_atendimento = ?'); p.push(q.u); }
   const [rows] = await pool.query(
     `SELECT a.setor_id AS setor, r.pergunta_texto AS texto, r.tipo, r.valor_num AS n, r.valores AS v, pe.ordem AS ordem
        FROM respostas r JOIN avaliacoes a ON a.id = r.avaliacao_id LEFT JOIN perguntas pe ON pe.id = r.pergunta_id
@@ -264,7 +266,7 @@ r.get('/export.xlsx', async (req, res) => {
   const nome = new Map(setores.map((s) => [s.id, s.nome]));
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Avaliação do Atendimento - FHDOD (protótipo acadêmico)';
+  wb.creator = 'Avaliação do Atendimento - FHDOD';
   const ws = wb.addWorksheet('Avaliações');
   ws.columns = [
     { header: 'Respondida em (UTC)', key: 'c', width: 22 }, { header: 'Setor', key: 's', width: 28 },
@@ -296,7 +298,7 @@ r.get('/export.xlsx', async (req, res) => {
   }
   const sb = wb.addWorksheet('Sobre');
   sb.getColumn(1).width = 100;
-  ['Projeto acadêmico / protótipo de solução para a Fundação Hospitalar Dr. Oswaldo Diesel (não é o sistema oficial da FHDOD).',
+  ['Fundação Hospitalar Dr. Oswaldo Diesel — Sistema de Avaliação do Atendimento.',
     'Gerado em ' + new Date().toLocaleString('pt-BR') + ' por ' + req.user.nome + '.',
     'Esta planilha não contém telefone nem nome de pacientes.'].forEach((t) => sb.addRow([t]));
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

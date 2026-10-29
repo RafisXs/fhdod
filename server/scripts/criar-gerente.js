@@ -1,5 +1,5 @@
 // Cria o gerente (ou redefine a senha dele):  npm run criar-gerente
-require('dotenv').config();
+require('../config');
 const readline = require('readline');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../db');

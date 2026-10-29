@@ -1,5 +1,5 @@
 -- =====================================================================
--- Avaliação do Atendimento - FHDOD (protótipo acadêmico)
+-- Avaliação do Atendimento - FHDOD
 -- Banco: MySQL 8.0+   |   Execute no MySQL Workbench (raio ⚡) ou:
 --   mysql -u root -p < database/schema.sql
 -- Pode ser executado mais de uma vez sem apagar dados.
@@ -22,7 +22,7 @@ USE hospital_experiencia;
 --    origem: de onde veio o nome do setor
 --      site_oficial      = serviço apresentado no site oficial da FHDOD
 --      pesquisa_impressa = consta na pesquisa de satisfação impressa do hospital
---      prototipo         = setor definido para o protótipo acadêmico
+--      prototipo         = setor da configuração inicial
 --      cadastrado        = setor criado depois pelo gerente, no painel
 --    ativo: 0 = some da pesquisa e da TV, mas o histórico de avaliações é mantido
 -- ---------------------------------------------------------------------
@@ -165,41 +165,41 @@ INSERT IGNORE INTO setores (id, nome, ordem, origem) VALUES
 
 -- Perguntas 1 e 2 de cada setor (escala de satisfação)
 INSERT IGNORE INTO perguntas (setor_id, ordem, texto, tipo) VALUES
-  ('rec', 1, 'Como foi o atendimento na recepção?', 'escala'),
-  ('rec', 2, 'As informações que você recebeu foram claras?', 'escala'),
-  ('pa', 1, 'Como foi o tempo de espera?', 'escala'),
-  ('pa', 2, 'Como foi o atendimento da enfermagem e do médico?', 'escala'),
-  ('rx', 1, 'Como foi o atendimento no Raio-X?', 'escala'),
-  ('rx', 2, 'Como foi o tempo de espera?', 'escala'),
-  ('endo', 1, 'Como foi o atendimento da equipe?', 'escala'),
-  ('endo', 2, 'O preparo e o exame foram explicados com clareza?', 'escala'),
-  ('cc', 1, 'Como foi o atendimento da equipe?', 'escala'),
-  ('cc', 2, 'As orientações antes do procedimento foram claras?', 'escala'),
-  ('ic', 1, 'Como foi o atendimento da enfermagem?', 'escala'),
-  ('ic', 2, 'Como foi o serviço de nutrição?', 'escala'),
-  ('ip', 1, 'Como foi o atendimento da enfermagem?', 'escala'),
-  ('ip', 2, 'O ambiente foi confortável para a criança e o acompanhante?', 'escala'),
-  ('sm', 1, 'Como foi o acolhimento da equipe multiprofissional?', 'escala'),
-  ('sm', 2, 'Você se sentiu respeitado(a) durante o atendimento?', 'escala'),
-  ('ob', 1, 'Como foi o atendimento da equipe?', 'escala'),
-  ('ob', 2, 'As orientações recebidas foram claras?', 'escala'),
-  ('tr', 1, 'Como foi o atendimento médico?', 'escala'),
-  ('tr', 2, 'Como foi o tempo de espera?', 'escala');
+  ('rec', 1, 'Como você avalia o atendimento prestado pela recepção?', 'escala'),
+  ('rec', 2, 'Como você avalia a clareza das informações recebidas?', 'escala'),
+  ('pa', 1, 'Como você avalia o tempo de espera para o atendimento?', 'escala'),
+  ('pa', 2, 'Como você avalia o atendimento prestado pelas equipes médica e de enfermagem?', 'escala'),
+  ('rx', 1, 'Como você avalia o atendimento prestado no setor de radiologia?', 'escala'),
+  ('rx', 2, 'Como você avalia o tempo de espera para o atendimento?', 'escala'),
+  ('endo', 1, 'Como você avalia o atendimento prestado pela equipe?', 'escala'),
+  ('endo', 2, 'Como você avalia a clareza das orientações sobre o preparo e a realização do exame?', 'escala'),
+  ('cc', 1, 'Como você avalia o atendimento prestado pela equipe?', 'escala'),
+  ('cc', 2, 'Como você avalia a clareza das orientações recebidas antes do procedimento?', 'escala'),
+  ('ic', 1, 'Como você avalia o atendimento prestado pela equipe de enfermagem?', 'escala'),
+  ('ic', 2, 'Como você avalia o serviço de nutrição oferecido durante a internação?', 'escala'),
+  ('ip', 1, 'Como você avalia o atendimento prestado pela equipe de enfermagem?', 'escala'),
+  ('ip', 2, 'Como você avalia o conforto do ambiente para a criança e seu acompanhante?', 'escala'),
+  ('sm', 1, 'Como você avalia o acolhimento realizado pela equipe multiprofissional?', 'escala'),
+  ('sm', 2, 'Como você avalia o respeito e a atenção recebidos durante o atendimento?', 'escala'),
+  ('ob', 1, 'Como você avalia o atendimento prestado pela equipe?', 'escala'),
+  ('ob', 2, 'Como você avalia a clareza das orientações recebidas?', 'escala'),
+  ('tr', 1, 'Como você avalia o atendimento médico recebido?', 'escala'),
+  ('tr', 2, 'Como você avalia o tempo de espera para o atendimento?', 'escala');
 
 -- Perguntas 3, 4 e 5 (iguais em todos os setores; depois podem ser editadas):
 --   3 = recomendação de 1 a 10 | 4 = pontos positivos | 5 = pontos a melhorar
 INSERT IGNORE INTO perguntas (setor_id, ordem, texto, tipo, opcoes)
-SELECT id, 4, 'O que foi bom no atendimento?', 'positivos',
+SELECT id, 4, 'Quais aspectos do atendimento você considera positivos?', 'positivos',
        JSON_ARRAY('Equipe atenciosa','Rapidez','Informações claras','Ambiente limpo','Conforto','Respeito')
 FROM setores;
 
 INSERT IGNORE INTO perguntas (setor_id, ordem, texto, tipo, opcoes)
-SELECT id, 5, 'O que pode melhorar?', 'negativos',
+SELECT id, 5, 'Quais aspectos do atendimento precisam ser aprimorados?', 'negativos',
        JSON_ARRAY('Demora','Falta de informação','Atendimento frio','Limpeza','Estrutura e conforto','Nada a melhorar')
 FROM setores;
 
 INSERT IGNORE INTO perguntas (setor_id, ordem, texto, tipo, opcoes)
-SELECT id, 3, 'De 1 a 10, qual a chance de você recomendar o hospital a um amigo ou familiar?', 'nps', NULL
+SELECT id, 3, 'Em uma escala de 1 a 10, qual é a probabilidade de você recomendar este hospital a um familiar ou amigo?', 'nps', NULL
 FROM setores;
 
 -- Internação Clínica tem a opção extra "Alimentação" (só se ainda não existir)

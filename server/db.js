@@ -1,5 +1,5 @@
 // Conexão com o MySQL (pool). As credenciais vêm do arquivo .env.
-require('dotenv').config();
+require('./config');
 const mysql = require('mysql2/promise');
 
 const pool = mysql.createPool({

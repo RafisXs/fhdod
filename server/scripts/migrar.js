@@ -1,6 +1,6 @@
 // Atualiza o banco existente para a versão atual:  npm run migrar
 // (o servidor também faz isso sozinho ao iniciar; este comando é só para rodar na mão)
-require('dotenv').config();
+require('../config');
 const { pool } = require('../db');
 const { migrar } = require('../lib/migracao');
 

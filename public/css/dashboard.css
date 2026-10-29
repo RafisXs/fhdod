@@ -1,3 +1,48 @@
+/* Controles e gráficos do painel. */
+.select-control{position:relative;width:100%;min-width:0}
+main.wide .select-native{position:absolute!important;width:1px!important;height:1px!important;min-height:0!important;padding:0!important;border:0!important;overflow:hidden;clip-path:inset(50%);pointer-events:none}
+main.wide .select-trigger{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;min-height:48px;padding:11px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit;font-weight:400;text-align:left;line-height:1.45;box-shadow:0 1px 2px rgba(32,35,42,.04)}
+.select-trigger span{min-width:0;overflow-wrap:anywhere}
+.select-trigger::after{content:"";width:9px;height:9px;border-right:2px solid var(--mut);border-bottom:2px solid var(--mut);transform:rotate(45deg);flex-shrink:0;margin:0 3px 5px 8px}
+main.wide .select-trigger:hover{border-color:var(--mut);background:var(--bg)}
+main.wide .select-trigger[aria-expanded="true"]{border-color:var(--pri);box-shadow:0 0 0 3px var(--pri2)}
+.select-trigger[aria-expanded="true"]::after{transform:rotate(225deg);margin-top:6px;margin-bottom:0}
+.select-menu{position:fixed;z-index:10000;overflow-y:auto;overscroll-behavior:contain;padding:6px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);box-shadow:0 10px 28px rgba(32,35,42,.18);font:400 16px/1.5 "Segoe UI",system-ui,sans-serif}
+.select-menu[hidden]{display:none}
+.select-option{position:relative;display:flex;align-items:center;min-height:46px;margin:2px 0;padding:10px 34px 10px 12px;border-radius:8px;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
+.select-option:hover,.select-option.active{background:var(--bg);outline:1px solid var(--line);outline-offset:-1px}
+.select-option[aria-selected="true"]{background:var(--pri2);color:var(--pri);font-weight:600}
+.select-option[aria-selected="true"]::after{content:"✓";position:absolute;right:12px;font-weight:700}
+.select-option[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
+@media(prefers-reduced-motion:no-preference){.select-trigger{transition:border-color .15s,box-shadow .15s,background .15s}}
+main.wide select,main.wide textarea{width:100%;font:inherit;color:var(--ink);background:var(--card);border:2px solid var(--line);border-radius:12px;padding:11px 12px;min-height:48px}
+main.wide select{cursor:pointer}
+main.wide label{display:block;font-weight:600;margin-bottom:6px}
+main.wide label.sh{display:flex}
+main.wide button,main.wide .btn{font:inherit;font-weight:600;cursor:pointer}
+main.wide .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;min-height:48px}
+main.wide button:disabled{opacity:.5;cursor:not-allowed}
+main.wide :is(button,a,input,select,textarea):focus-visible{outline:3px solid var(--pri);outline-offset:3px}
+main.wide [hidden]{display:none!important}
+.qadd-controls{align-items:flex-end;gap:16px}
+.qadd-controls>div{flex:1;min-width:min(100%,260px);max-width:620px}
+.qadd-controls .btn{flex-shrink:0}
+.qadd .qcount{margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+.qe{margin:0;min-width:0}
+.qtools{margin-bottom:16px}
+.contact-actions{margin-bottom:20px}
+.contact-number{font-size:1.25rem;font-weight:600;font-variant-numeric:tabular-nums}
+main.wide .whatsapp{background:#187647;color:#fff}
+main.wide .hist{gap:8px;height:190px;padding-top:8px}
+main.wide .hc{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:20px minmax(0,1fr) 20px;justify-content:stretch;align-items:stretch;gap:4px;min-width:0;text-align:center}
+.hist-track{display:flex;align-items:flex-end;justify-content:center;height:100%;width:100%;border-bottom:1px solid var(--line)}
+main.wide .hc i{display:block;width:100%;max-width:40px;min-height:0;flex-shrink:0;border-radius:5px 5px 0 0}
+main.wide .hc span,main.wide .hc em{font-size:.8rem}
+main.wide .sv{display:block;max-height:300px;min-height:160px}
+.chart-caption{margin:8px 0 0;color:var(--mut);font-size:.82rem}
+main.wide .kpi{min-width:0}
+main.wide .hb{grid-template-columns:minmax(0,38%) minmax(20px,1fr) auto}
+@media(max-width:600px){.qadd-controls>div{max-width:none}.qadd-controls .btn{width:100%}main.wide .kpi b{font-size:1.8rem}}
 /* Painel da equipe em monitor de computador (a partir de 1100 px de largura).
    No celular e no tablet continua valendo o layout de coluna única do style.css. */
 @media screen and (min-width:1100px){

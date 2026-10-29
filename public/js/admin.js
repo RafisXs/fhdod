@@ -11,11 +11,11 @@ function papelTxt(u) {
   if (u.papel === "admin") return "Administrador do setor: " + sname(u.setor_id);
   return "Visualizador (somente leitura): " + (u.setor_id ? sname(u.setor_id) : "todos os setores");
 }
-function fmt1(x) { return x.toFixed(1).replace(".", ","); }
+function fmt1(x) { return Number(x).toFixed(1).replace(".", ","); }
 function fmtd(k) { return new Date(k).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }); }
 function fmtData(s) { var p = String(s).split("-"); return p[2] + "/" + p[1] + "/" + p[0]; }
 function pct(a, b) { return b ? Math.round(100 * a / b) : 0; }
-function cnt(rows, fn) { var c = {}; rows.forEach(function (r) { var k = fn(r); if (Array.isArray(k)) k.forEach(function (x) { c[x] = (c[x] || 0) + 1; }); else c[k] = (c[k] || 0) + 1; }); return c; }
+function cnt(rows, fn) { var c = Object.create(null); rows.forEach(function (r) { var k = fn(r); if (Array.isArray(k)) Array.from(new Set(k)).forEach(function (x) { c[x] = (c[x] || 0) + 1; }); else c[k] = (c[k] || 0) + 1; }); return c; }
 function sel(id, l, opts, v) { return '<div><label for="' + id + '">' + l + '</label><select id="' + id + '">' + opts.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (String(o[0]) === String(v) ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select></div>"; }
 function hb(o, total, order) {
   var keys = order || Object.keys(o).sort(function (a, b) { return o[b] - o[a]; });
@@ -36,7 +36,7 @@ function dl(c, p, dec, suf) {
   if (F.p === "all") return "todo o período";
   if (p == null || c == null) return "sem dados no período anterior";
   var d = c - p; if (Math.abs(d) < (dec ? 0.05 : 0.5)) return "= igual ao período anterior";
-  return (d > 0 ? "▲ +" : "▼ −") + (dec ? fmt1(Math.abs(d)) : Math.round(Math.abs(d))) + (suf || "") + " vs período anterior";
+  return (d > 0 ? "▲ +" : "▼ −") + (dec ? fmt1(Math.abs(d)) : Math.round(Math.abs(d))) + (suf || "") + " em relação ao período anterior";
 }
 function series(rows) {
   if (!rows.length) return "";
@@ -46,12 +46,12 @@ function series(rows) {
   var c = {}, mn = Infinity, mxk = 0;
   rows.forEach(function (r) { var k = key(r.criado_em); c[k] = (c[k] || 0) + 1; if (k < mn) mn = k; if (k > mxk) mxk = k; });
   var start = mn;
-  if (daily) { var s0 = day(Date.now()); s0.setDate(s0.getDate() - (+F.p - 1)); start = s0.getTime(); mxk = day(Date.now()).getTime(); }
+  if (daily) { var s0 = day(Date.now()); s0.setDate(s0.getDate() - +F.p); start = s0.getTime(); mxk = day(Date.now()).getTime(); }
   var ks = []; for (var t = start; t <= mxk;) { ks.push(t); var d = new Date(t); d.setDate(d.getDate() + step); t = d.getTime(); }
-  var mx = Math.max.apply(null, ks.map(function (k) { return c[k] || 0; }).concat([1])), bw = 600 / ks.length;
-  var bars = ks.map(function (k, i) { var v = c[k] || 0, h = Math.round(105 * v / mx); return '<rect x="' + (i * bw + 1).toFixed(1) + '" y="' + (115 - h) + '" width="' + Math.max(bw - 2, 1).toFixed(1) + '" height="' + h + '" rx="2"><title>' + (daily ? "" : "Semana de ") + fmtd(k) + ": " + v + " avaliações</title></rect>"; }).join("");
+  var mx = Math.max.apply(null, ks.map(function (k) { return c[k] || 0; }).concat([1])), bw = 550 / ks.length, width = Math.min(36, bw * 0.7);
+  var bars = ks.map(function (k, i) { var v = c[k] || 0, h = 100 * v / mx, x = 35 + i * bw + (bw - width) / 2; return '<rect x="' + x.toFixed(1) + '" y="' + (120 - h).toFixed(1) + '" width="' + width.toFixed(2) + '" height="' + h.toFixed(1) + '" rx="3"><title>' + (daily ? "" : "Semana de ") + fmtd(k) + ": " + v + " avaliações</title></rect>" + (v && ks.length <= 32 ? '<text x="' + (x + width / 2).toFixed(1) + '" y="' + (114 - h).toFixed(1) + '" text-anchor="middle" font-size="11">' + v + '</text>' : ''); }).join("");
   var l1 = fmtd(ks[0]), l2 = fmtd(ks[ks.length - 1]);
-  return '<svg class="sv" viewBox="0 0 600 150" role="img" aria-label="Avaliações por ' + (daily ? "dia" : "semana") + ", de " + l1 + " a " + l2 + ", máximo " + mx + '">' + bars + '<line x1="0" y1="115.5" x2="600" y2="115.5" stroke="currentColor" opacity=".3"/><text x="0" y="135" font-size="12">' + l1 + '</text><text x="600" y="135" font-size="12" text-anchor="end">' + l2 + '</text><text x="0" y="10" font-size="12">máx. ' + mx + "</text></svg>";
+  return '<svg class="sv" viewBox="0 0 600 155" role="img" aria-label="Avaliações por ' + (daily ? "dia" : "semana") + ", de " + l1 + " a " + l2 + ", máximo " + mx + '"><line x1="35" y1="20" x2="585" y2="20" stroke="currentColor" opacity=".15"/><text x="28" y="24" font-size="11" text-anchor="end">' + mx + '</text><text x="28" y="124" font-size="11" text-anchor="end">0</text>' + bars + '<line x1="35" y1="120" x2="585" y2="120" stroke="currentColor" opacity=".3"/><text x="35" y="145" font-size="12">' + l1 + '</text><text x="585" y="145" font-size="12" text-anchor="end">' + l2 + '</text></svg><p class="chart-caption">Quantidade de avaliações por ' + (daily ? 'dia' : 'semana') + ' · Total no período: ' + rows.length + '</p>';
 }
 function kpi(l, v, s) { return '<div class="kpi"><small>' + l + "</small><b>" + v + "</b><span>" + s + "</span></div>"; }
 
@@ -61,7 +61,7 @@ function body(rows) {
   var ab = rows.filter(function (x) { return x.abaixo_media; }).length, pend = rows.filter(function (x) { return x.telefone && x.contato_status === "pendente"; }).length;
   var det = rows.filter(function (x) { return x.nps <= 6; }).length, neu = rows.filter(function (x) { return x.nps === 7 || x.nps === 8; }).length, pro = rows.filter(function (x) { return x.nps >= 9; }).length;
   var cn = cnt(rows, function (x) { return x.nps; }), mxn = Math.max.apply(null, Object.keys(cn).map(function (k) { return cn[k]; }).concat([1]));
-  var hist = ""; for (var i = 1; i <= 10; i++) { var v = cn[i] || 0; hist += '<div class="hc"><span>' + v + '</span><i style="height:' + Math.round(100 * v / mxn) + "%;background:hsl(" + Math.round((i - 1) / 9 * 125) + ',70%,50%)"></i><em>' + i + "</em></div>"; }
+  var hist = ""; for (var i = 1; i <= 10; i++) { var v = cn[i] || 0; hist += '<div class="hc" title="Nota ' + i + ': ' + v + ' avaliações"><span>' + v + '</span><div class="hist-track"><i style="height:' + (100 * v / mxn) + '%;background:' + (i <= 6 ? '#c64545' : i <= 8 ? '#bf8a19' : '#23845b') + '"></i></div><em>' + i + "</em></div>"; }
   var ids = S.map(function (s) { return s.id; }).filter(function (id) { return rows.some(function (r) { return r.setor === id; }); });
   ids.sort(function (a, b) { return (avgOf(rows.filter(function (x) { return x.setor === a; })) || 9) - (avgOf(rows.filter(function (x) { return x.setor === b; })) || 9); });
   var trs = ids.map(function (id) { var r = rows.filter(function (x) { return x.setor === id; }), a = avgOf(r); return "<tr><td>" + esc(sname(id)) + (a != null && a < 3 ? '<span class="bdg">Atenção</span>' : "") + "</td><td>" + r.length + "</td><td>" + (a == null ? "-" : fmt1(a) + '/5<span class="tr mini"><i style="width:' + Math.round(a / 5 * 100) + '%"></i></span>') + "</td><td>" + npsOf(r) + "</td><td>" + (satOf(r) == null ? "-" : satOf(r) + "%") + "</td><td>" + r.filter(function (x) { return x.abaixo_media; }).length + "</td><td>" + esc(top1(r, "pos")) + "</td><td>" + esc(top1(r, "neg")) + "</td></tr>"; }).join("");
@@ -69,16 +69,18 @@ function body(rows) {
   return '<div class="kpis">' + kpi("Avaliações", n, dl(n, pr.length || null, 0)) + kpi("Nota média", av == null ? "-" : fmt1(av) + "/5", dl(av, avgOf(pr), 1)) + kpi("NPS", nps, dl(nps, npsOf(pr), 0)) + kpi("Satisfeitos", sat == null ? "-" : sat + "%", dl(sat, satOf(pr), 0, " p.p.")) + kpi("Abaixo da média", ab + " (" + pct(ab, n) + "%)", isV() ? "notas baixas no período" : "contatos pendentes: " + pend) + "</div>" +
     '<div class="pn"><section class="pnl w2"><h3>Avaliações ao longo do tempo</h3>' + series(rows) + "</section>" +
     '<section class="pnl"><h3>Recomendação (1 a 10)</h3><div class="hist" role="img" aria-label="Distribuição das notas de recomendação">' + hist + '</div><div class="stk" aria-hidden="true"><i style="width:' + pct(det, n) + '%;background:hsl(0,70%,50%)"></i><i style="width:' + pct(neu, n) + '%;background:hsl(50,80%,50%)"></i><i style="width:' + pct(pro, n) + '%;background:hsl(125,60%,42%)"></i></div><div class="lg"><span><i style="background:hsl(0,70%,50%)"></i>Detratores (1-6): ' + pct(det, n) + '%</span><span><i style="background:hsl(50,80%,50%)"></i>Neutros (7-8): ' + pct(neu, n) + '%</span><span><i style="background:hsl(125,60%,42%)"></i>Promotores (9-10): ' + pct(pro, n) + "%</span></div></section>" +
-    '<section class="pnl"><h3>Perfil de quem avaliou</h3><h4>Tipo de atendimento</h4>' + hb(cnt(rows, function (x) { return x.tipo_atendimento; }), n, ["SUS", "Plano de Saúde", "Particular"]) + "<h4>Turno</h4>" + hb(cnt(rows, function (x) { return x.turno; }), n, ["Dia", "Noite"]) + "<h4>Respondente</h4>" + hb(cnt(rows, function (x) { return x.respondente; }), n, ["Paciente", "Familiar"]) + "</section>" +
-    '<section class="pnl"><h3>O que foi bom</h3>' + hb(cnt(rows, function (x) { return x.pos; }), n) + "</section>" +
-    '<section class="pnl"><h3>O que pode melhorar</h3>' + hb(cnt(rows, function (x) { return x.neg.filter(function (y) { return !none(y); }); }), n) + '<p class="mut" style="margin:8px 0 0">Responderam "Nada a melhorar": ' + semM + " (" + pct(semM, n) + "%)</p></section>" +
+    '<section class="pnl"><h3>Perfil dos respondentes</h3><h4>Tipo de atendimento</h4>' + hb(cnt(rows, function (x) { return x.tipo_atendimento; }), n, ["SUS", "Plano de Saúde", "Particular"]) + "<h4>Turno</h4>" + hb(cnt(rows, function (x) { return x.turno; }), n, ["Dia", "Noite"]) + "<h4>Respondente</h4>" + hb(cnt(rows, function (x) { return x.respondente; }), n, ["Paciente", "Familiar"]) + "</section>" +
+    '<section class="pnl"><h3>Aspectos positivos</h3>' + hb(cnt(rows, function (x) { return x.pos; }), n) + "</section>" +
+    '<section class="pnl"><h3>Oportunidades de melhoria</h3>' + hb(cnt(rows, function (x) { return x.neg.filter(function (y) { return !none(y); }); }), n) + '<p class="mut" style="margin:8px 0 0">Responderam "Nada a melhorar": ' + semM + " (" + pct(semM, n) + "%)</p></section>" +
     '<section class="pnl w2"><h3>Resultado por setor</h3><div class="tbl-wrap"><table class="tbl"><caption class="sr">Resultado por setor</caption><thead><tr><th>Setor</th><th>Resp.</th><th>Nota</th><th>NPS</th><th>Satisf.</th><th>Abaixo da média</th><th>Mais elogiado</th><th>Mais a melhorar</th></tr></thead><tbody>' + trs + '</tbody></table></div><p class="mut" style="margin:8px 0 0">Ordenado da menor para a maior nota. "Atenção" aparece nos setores com nota média abaixo de 3.</p></section></div>';
 }
 
 function falhou(e) { if (e.status === 401) { pararVivo(); ME = null; DATA = []; UPDT = null; loginView("Sessão expirada. Entre novamente."); return true; } return false; }
+var DATA_REQUEST = 0;
 function loadData(cb) {
-  api("GET", "/api/admin/avaliacoes").then(function (rows) { DATA = rows; LOADERR = null; UPDT = new Date(); cb(); })
-    .catch(function (e) { if (falhou(e)) return; DATA = []; LOADERR = e; UPDT = new Date(); cb(); });
+  var request = ++DATA_REQUEST, me = ME;
+  return api("GET", "/api/admin/avaliacoes").then(function (rows) { if (request !== DATA_REQUEST || ME !== me) return; DATA = rows; LOADERR = null; UPDT = new Date(); cb(); })
+    .catch(function (e) { if (request !== DATA_REQUEST || ME !== me || falhou(e)) return; DATA = []; LOADERR = e; UPDT = new Date(); cb(); });
 }
 function updBadge() { var n = DATA.filter(function (r) { return r.telefone && r.contato_status === "pendente"; }).length, b = $("t-ctt"); if (b) b.textContent = "Contatos" + (n ? " (" + n + ")" : ""); }
 
@@ -91,16 +93,17 @@ function erroTela(e) { draw('<h1>Não foi possível abrir</h1><div class="note">
 function carregarSetores() { return api("GET", "/api/admin/setores").then(function (l) { S = l; }); }
 function setOpts() { return S.map(function (s) { return [s.id, s.nome + (s.ativo === false ? " (desativado)" : "")]; }); }
 function entrou(me) {
-  ME = me; DATA = []; UPDT = null; TAB = "res";
+  ME = me; DATA = []; UPDT = null; TAB = "res"; CT = { st: "pendente", s: "" }; VIVOCOUNT = null;
   carregarSetores().then(function () { F.s = all() ? "" : ME.setor_id; shell(); }).catch(function (e) { if (!falhou(e)) erroTela(e); });
 }
 
 function loginView(aviso) {
-  draw('<div class="entrada"><section class="lg-card" aria-labelledby="lt"><h1 id="lt">Entrar na área restrita</h1><p class="mut lg-sub">Use o e-mail e a senha que a gerência cadastrou para você.</p><form id="f" novalidate>' +
+  pararVivo(); QDIRTY = false; QBUSY = false;
+  draw('<div class="entrada"><section class="lg-card" aria-labelledby="lt"><h1 id="lt">Entrar na área restrita</h1><p class="mut lg-sub">Informe o e-mail e a senha cadastrados pela gestão.</p><form id="f" novalidate>' +
     fld("em", "E-mail", "email", 'autocomplete="username" autocapitalize="none" spellcheck="false" required') + fld("pw", "Senha", "password", 'autocomplete="current-password" required') +
     '<p class="caps" id="caps" role="status" hidden>Caps Lock está ligado.</p><label class="sh"><input type="checkbox" id="sp"> Mostrar senha</label><p class="err" id="er" role="alert">' + esc(aviso || "") + '</p><button class="cta" id="go" type="submit">Entrar</button></form>' +
     '<p class="mut lg-help">Esqueceu a senha? Peça ao gerente do hospital para definir uma nova na aba Equipe.</p></section>' +
-    '<aside class="lg-info" aria-label="Sobre a área restrita"><p class="lg-eyebrow">Experiência do paciente</p><h2>Painel de gestão da avaliação do atendimento</h2><p>Acompanhe as avaliações em tempo real, cuide das perguntas e entre em contato com quem teve um atendimento abaixo da média.</p><ul>' +
+    '<aside class="lg-info" aria-label="Sobre a área restrita"><p class="lg-eyebrow">Experiência do paciente</p><h2>Painel de gestão da avaliação do atendimento</h2><p>Acompanhe os indicadores de satisfação, gerencie as perguntas e realize o acompanhamento das avaliações que exigem atenção.</p><ul>' +
     '<li><strong>Gerente</strong><span>Todos os setores, perguntas, equipe, QR Codes e TV Wall</span></li><li><strong>Administrador de setor</strong><span>Perguntas, resultados e contatos do seu setor</span></li><li><strong>Visualizador</strong><span>Somente consulta dos resultados, sem telefones</span></li></ul></aside></div>');
   app.classList.add("login");
   showPw(["pw"]);
@@ -126,6 +129,9 @@ function shell() {
   loadData(function () { updBadge(); setTab(TAB); });
 }
 function setTab(t) {
+  if (TAB === "per" && QBUSY) { qmsg("Aguarde a conclusão do salvamento."); return; }
+  if (TAB === "per" && QDIRTY && !window.confirm("Há alterações não salvas nas perguntas. Deseja descartá-las?")) return;
+  QDIRTY = false;
   TAB = t;
   pararVivo();
   document.querySelectorAll(".tabs button").forEach(function (b) { if (b.dataset.t === t) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
@@ -140,7 +146,7 @@ function viewRes() {
     sel("fp", "Período", [["7", "Últimos 7 dias"], ["30", "Últimos 30 dias"], ["90", "Últimos 90 dias"], ["all", "Todo o período"]], F.p) +
     (all() ? sel("fs", "Setor", [["", "Todos os setores"]].concat(setOpts()), F.s) : "") +
     sel("ft", "Turno", [["", "Todos"], ["Dia", "Dia"], ["Noite", "Noite"]], F.t) + sel("fu", "Tipo de atendimento", [["", "Todos"], ["SUS", "SUS"], ["Plano de Saúde", "Plano de Saúde"], ["Particular", "Particular"]], F.u) + '</div><div id="dbody"></div>';
-  $("rf").onclick = function () { $("dbody").innerHTML = '<p class="mut">Atualizando…</p>'; loadData(function () { updBadge(); updRes(); }); };
+  $("rf").onclick = function () { $("rf").disabled = true; $("dbody").innerHTML = '<p class="mut">Atualizando…</p>'; loadData(function () { updBadge(); if (TAB === "res" && $("dbody")) { $("rf").disabled = false; updRes(); } }); };
   $("pt").onclick = function () { window.print(); };
   $("ex").onclick = function () { $("ex").href = exportUrl(); };
   [["fp", "p"], ["fs", "s"], ["ft", "t"], ["fu", "u"]].forEach(function (f) { var el = $(f[0]); if (el) el.onchange = function () { F[f[1]] = this.value; updRes(); }; });
@@ -158,10 +164,11 @@ function updRes() {
 
 /* ---------- Resultado por pergunta (período e setor do filtro) ---------- */
 var RPQ_ABERTO = false;
-var TIPO_TXT = { escala: "Nota (1 a 5)", nps: "Recomendação (1 a 10)", positivos: "O que foi bom", negativos: "O que melhorar" };
+var TIPO_TXT = { escala: "Nota (1 a 5)", nps: "Recomendação (1 a 10)", positivos: "Aspectos positivos", negativos: "Aspectos a aprimorar" };
 function carregarRPQ() {
-  api("GET", "/api/admin/resultado-perguntas?p=" + encodeURIComponent(F.p) + (all() && F.s ? "&s=" + encodeURIComponent(F.s) : "")).then(function (j) {
-    var el = $("rpq"); if (!el) return;
+  var target = $("rpq");
+  api("GET", "/api/admin/resultado-perguntas?" + exportUrl().split("?")[1]).then(function (j) {
+    var el = $("rpq"); if (!el || el !== target) return;
     var ultimo = null, linhas = j.itens.map(function (x) {
       var cab = x.setor !== ultimo ? '<tr class="grp"><td colspan="4"><strong>' + esc(sname(x.setor)) + "</strong></td></tr>" : ""; ultimo = x.setor;
       var res = x.tipo === "escala" ? "<b>" + fmt1(x.media) + "</b>/5 · " + x.satisfeitos + "% satisfeitos"
@@ -169,13 +176,13 @@ function carregarRPQ() {
         : (x.opcoes.length ? esc(x.opcoes.map(function (o) { return o[0] + " (" + o[1] + ")"; }).join(", ")) : "<em>sem escolhas</em>");
       return cab + "<tr><td>" + esc(x.texto) + '</td><td class="mut">' + TIPO_TXT[x.tipo] + "</td><td>" + x.total + "</td><td>" + res + "</td></tr>";
     }).join("");
-    el.innerHTML = '<details class="pnl rpq"' + (RPQ_ABERTO ? " open" : "") + '><summary><h3>Resultado por pergunta</h3></summary><p class="mut" style="margin:8px 0">Mostra cada pergunta, inclusive as que você adicionou. Respeita o período e o setor escolhidos acima. Perguntas excluídas aparecem enquanto houver respostas no período.</p><div class="tbl-wrap"><table class="tbl"><caption class="sr">Resultado por pergunta</caption><thead><tr><th>Pergunta</th><th>Tipo</th><th>Respostas</th><th>Resultado</th></tr></thead><tbody>' + (linhas || '<tr><td colspan="4" class="mut">Sem respostas no período.</td></tr>') + "</tbody></table></div></details>";
+    el.innerHTML = '<details class="pnl rpq"' + (RPQ_ABERTO ? " open" : "") + '><summary><h3>Resultado por pergunta</h3></summary><p class="mut" style="margin:8px 0">Apresenta os resultados de cada pergunta conforme os filtros selecionados. Perguntas excluídas permanecem no histórico enquanto houver respostas no período.</p><div class="tbl-wrap"><table class="tbl"><caption class="sr">Resultado por pergunta</caption><thead><tr><th>Pergunta</th><th>Tipo</th><th>Respostas</th><th>Resultado</th></tr></thead><tbody>' + (linhas || '<tr><td colspan="4" class="mut">Sem respostas no período.</td></tr>') + "</tbody></table></div></details>";
     el.querySelector("details").ontoggle = function () { RPQ_ABERTO = this.open; };
-  }).catch(function (e) { falhou(e); });
+  }).catch(function (e) { if (!falhou(e) && $("rpq") === target && target) target.innerHTML = '<p class="note" role="alert">' + esc(e.message) + '</p>'; });
 }
 
 /* ---------- Ao vivo: respostas já gravadas, mesmo de quem ainda não terminou ---------- */
-var VIVO = null;
+var VIVO = null, VIVOCOUNT = null, VIVOBUSY = false;
 function pararVivo() { if (VIVO) { clearInterval(VIVO); VIVO = null; } }
 function iniciarVivo() { pararVivo(); carregarVivo(); VIVO = setInterval(function () { if (!document.hidden) carregarVivo(); }, 8000); }
 function ha(seg) { return seg < 60 ? "agora" : seg < 3600 ? "há " + Math.floor(seg / 60) + " min" : seg < 86400 ? "há " + Math.floor(seg / 3600) + " h" : "há " + Math.floor(seg / 86400) + " d"; }
@@ -197,24 +204,32 @@ function paintVivo(j) {
   el.innerHTML = '<section class="pnl vivo"><h3><i class="dot' + (ag.length ? "" : " off") + '" aria-hidden="true"></i>Ao vivo: <span>' + ag.length + " respondendo agora</span>, <span>" + ab + ' não terminaram</span> <small class="mut">(últimos 7 dias)</small></h3><p class="mut" style="margin:0 0 8px">Cada resposta é gravada no instante em que o paciente avança. Estas avaliações ainda não entram nos indicadores abaixo, que contam só as enviadas. Atualiza sozinho a cada 8 segundos.</p><div class="tbl-wrap"><table class="tbl"><caption class="sr">Avaliações em andamento</caption><thead><tr><th>Setor</th><th>Situação</th><th>Progresso</th><th>Respostas até agora</th></tr></thead><tbody>' + linhas + "</tbody></table></div>" + (it.length > 12 ? '<p class="mut" style="margin:8px 0 0">Mostrando as 12 mais recentes de ' + it.length + ".</p>" : "") + "</section>";
 }
 function carregarVivo() {
+  if (VIVOBUSY) return;
+  VIVOBUSY = true;
+  var target = $("vivo"), me = ME;
   api("GET", "/api/admin/andamento").then(function (j) {
-    if (TAB !== "res") return;
+    if (TAB !== "res" || $("vivo") !== target || ME !== me) return;
     paintVivo(j);
     // Alguém terminou uma avaliação: atualiza os indicadores sozinho (sem mexer nos filtros)
-    if (DATA.length < 5000 && j.concluidas !== DATA.length) loadData(function () { updBadge(); if (TAB === "res") updRes(); });
-  }).catch(function (e) { if (falhou(e)) pararVivo(); });
+    var mudou = VIVOCOUNT == null ? j.concluidas !== DATA.length && DATA.length < 5000 : j.concluidas !== VIVOCOUNT;
+    VIVOCOUNT = j.concluidas;
+    if (mudou) return loadData(function () { updBadge(); if (TAB === "res" && $("dbody")) updRes(); });
+  }).catch(function (e) { if (ME !== me) return; if (falhou(e)) pararVivo(); else if ($("vivo") === target && target) target.innerHTML = '<p class="note" role="status">Não foi possível atualizar as avaliações em andamento. Uma nova tentativa será realizada automaticamente.</p>'; })
+    .finally(function () { VIVOBUSY = false; });
 }
 
 /* ---------- Contatos (telefones de avaliações abaixo da média) ---------- */
 function viewCtt() {
   var rows = DATA.filter(function (r) { return r.telefone && (!CT.st || r.contato_status === CT.st) && (!CT.s || r.setor === CT.s); });
-  $("tab").innerHTML = '<p class="mut">Pessoas que deram nota abaixo da média e autorizaram o contato. Ligue para entender o que houve e registre o resultado. Use o telefone somente para este fim.</p><div class="filters">' +
+  $("tab").innerHTML = '<p class="mut">Contatos de respondentes que autorizaram o acompanhamento de sua avaliação. Utilize os canais abaixo para compreender a experiência relatada e registre as providências adotadas. O telefone deve ser utilizado exclusivamente para essa finalidade.</p><div class="filters">' +
     sel("cs", "Situação", [["", "Todas"], ["pendente", "Pendentes"], ["contatado", "Contatadas"], ["resolvido", "Resolvidas"]], CT.st) +
     (all() ? sel("cx", "Setor", [["", "Todos os setores"]].concat(setOpts()), CT.s) : "") + '</div><div class="cards">' +
     (rows.length ? rows.map(function (r) {
       var neg = r.neg.filter(function (x) { return !none(x); });
+      var phone = String(r.telefone).replace(/\D/g, "");
+      if (phone.length === 10 || phone.length === 11) phone = "55" + phone;
       return '<article class="pnl" data-id="' + r.id + '"><h3>' + esc(sname(r.setor)) + ' <span class="bdg" style="margin-left:6px">' + STL[r.contato_status] + '</span></h3><p class="mut">Atendimento em ' + fmtData(r.data_atendimento) + " · " + esc(r.turno) + " · " + esc(r.respondente) + " · " + esc(r.tipo_atendimento) + "</p><p>Nota média: <strong>" + (r.nota_media == null ? "-" : fmt1(r.nota_media) + "/5") + "</strong> · Recomendação: <strong>" + r.nps + "/10</strong></p>" + (neg.length ? "<p>Pontos a melhorar: " + esc(neg.join(", ")) + "</p>" : "") +
-        '<p><a class="lk" href="tel:+55' + r.telefone + '">' + IT + '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>' + fmtTel(r.telefone) + "</a></p>" +
+        '<p class="contact-number">' + esc(fmtTel(phone.slice(0, 2) === "55" ? phone.slice(2) : phone)) + '</p><div class="row contact-actions"><a class="btn o" href="tel:+' + phone + '" aria-label="Ligar para o telefone informado">Ligar</a><a class="btn whatsapp" href="https://wa.me/' + phone + '" target="_blank" rel="noopener noreferrer" aria-label="Abrir conversa no WhatsApp (nova aba)">WhatsApp ↗</a></div>' +
         '<div class="fld">' + sel("st" + r.id, "Situação", [["pendente", "Pendente"], ["contatado", "Contatado"], ["resolvido", "Resolvido"]], r.contato_status) + '</div><div class="fld"><label for="ob' + r.id + '">Observações (até 500 caracteres)</label><textarea id="ob' + r.id + '" maxlength="500" rows="3">' + esc(r.contato_obs || "") + '</textarea></div><div class="row"><button class="btn" data-a="save">Salvar</button><button class="btn o" data-a="del">Apagar telefone</button></div><p class="msg" role="status"></p></article>';
     }).join("") : '<p class="mut">Nenhum contato com estes filtros.</p>') + "</div>";
   $("cs").onchange = function () { CT.st = this.value; viewCtt(); };
@@ -234,20 +249,23 @@ function viewCtt() {
 }
 
 /* ---------- Perguntas (gerente: todos os setores; administrador: o seu setor) ---------- */
-var TIPOS = [["escala", "Nota de satisfação (5 níveis)"], ["positivos", "O que foi bom (escolha várias)"], ["negativos", "O que pode melhorar (escolha várias)"]];
-var QL = [], QREM = [], MAXQ = 30;
+var TIPOS = [["escala", "Nota de satisfação (5 níveis)"], ["positivos", "Aspectos positivos (múltipla escolha)"], ["negativos", "Aspectos a aprimorar (múltipla escolha)"]];
+var QL = [], QREM = [], MAXQ = 30, QDIRTY = false, QBUSY = false;
+window.addEventListener("beforeunload", function (e) { if (QDIRTY || QBUSY) { e.preventDefault(); e.returnValue = ""; } });
 function viewPer() {
   var ss = mySet(); if (!QS || !ss.some(function (s) { return s.id === QS; })) QS = ss[0].id;
-  $("tab").innerHTML = '<p class="mut">Cada setor pode ter até ' + MAXQ + ' perguntas. Adicione, exclua e mude a ordem com os botões de cada pergunta e clique em <strong>Salvar alterações</strong> no fim. A pergunta de <strong>recomendação de 1 a 10</strong> é obrigatória em todo setor: dá para mudar o texto e a posição, mas não excluir. Perguntas de nota são obrigatórias para o paciente; as de escolha são opcionais. Formulários curtos (5 a 8 perguntas) costumam ter mais respostas. As mudanças valem para as próximas avaliações; as respostas antigas guardam o texto da época.</p>' +
+  $("tab").innerHTML = '<p class="mut">Configure até ' + MAXQ + ' perguntas por setor. Utilize os controles para editar, reordenar ou excluir perguntas e, ao concluir, selecione <strong>Salvar alterações</strong>. A pergunta de <strong>recomendação de 1 a 10</strong> é obrigatória e permite apenas a edição do enunciado e da posição. As perguntas de satisfação são obrigatórias; as de múltipla escolha são opcionais. As alterações serão aplicadas às próximas avaliações, preservando os enunciados e as respostas do histórico.</p>' +
     (all() ? '<div class="filters">' + sel("qs", "Setor", setOpts(), QS) + "</div>" : "<h2>" + esc(sname(QS)) + "</h2>") + '<div id="qed"><p class="mut">Carregando…</p></div>';
-  if ($("qs")) $("qs").onchange = function () { QS = this.value; loadQ(); };
+  if ($("qs")) $("qs").onchange = function () { if (QDIRTY && !window.confirm("Há alterações não salvas. Deseja descartá-las e trocar de setor?")) { this.value = QS; return; } QDIRTY = false; QS = this.value; loadQ(); };
   loadQ();
 }
 function loadQ(depois) {
-  api("GET", "/api/admin/perguntas/" + QS).then(function (qs) {
+  var setor = QS, target = $("qed");
+  return api("GET", "/api/admin/perguntas/" + setor).then(function (qs) {
+    if (TAB !== "per" || QS !== setor || $("qed") !== target) return;
     QL = qs.map(function (q) { return { id: q.id, texto: q.texto, tipo: q.tipo, opcoesTxt: (q.opcoes || []).join("\n"), ativa: q.ativa }; });
-    QREM = []; drawQ(); if (depois) depois();
-  }).catch(function (e) { if (!falhou(e)) $("qed").innerHTML = '<div class="note">' + esc(e.message) + "</div>"; });
+    QREM = []; QDIRTY = false; drawQ(); if (depois) depois();
+  }).catch(function (e) { if (!falhou(e) && $("qed") === target && QS === setor && target) target.innerHTML = '<div class="note">' + esc(e.message) + "</div>"; });
 }
 function qmsg(t, ok) { var m = $("qmsg"); if (m) { m.className = "msg" + (ok ? " ok" : ""); m.textContent = t; } }
 function drawQ() {
@@ -257,16 +275,18 @@ function drawQ() {
     return '<fieldset class="pnl qe" data-i="' + i + '" style="margin-bottom:12px"><legend><strong>Pergunta ' + (i + 1) + (nps ? " (recomendação de 1 a 10)" : "") + (q.id ? "" : " (nova)") + '</strong></legend>' +
       '<div class="row qtools"><button type="button" class="ghost" data-a="up"' + (i === 0 ? " disabled" : "") + ' aria-label="Subir a pergunta ' + (i + 1) + '">↑ Subir</button><button type="button" class="ghost" data-a="down"' + (i === n - 1 ? " disabled" : "") + ' aria-label="Descer a pergunta ' + (i + 1) + '">↓ Descer</button>' + (nps ? "" : '<button type="button" class="ghost danger" data-a="del" aria-label="Excluir a pergunta ' + (i + 1) + '">Excluir</button>') + "</div>" +
       '<div class="fld"><label for="qt' + i + '">Texto da pergunta</label><input id="qt' + i + '" class="qt" maxlength="160" value="' + esc(q.texto) + '"></div>' +
-      (nps ? '<p class="mut" style="margin:0">Carinhas de 1 a 10. Sempre presente, não pode ser desativada.</p>'
+      (nps ? '<p class="mut" style="margin:0">Escala de recomendação de 1 a 10. Pergunta obrigatória, que não pode ser desativada.</p>'
         : '<div class="fld">' + sel("qk" + i, "Tipo de resposta", TIPOS, q.tipo) + '</div><div class="fld qo-w"' + (ch ? "" : " hidden") + '><label for="qo' + i + '">Opções (uma por linha, de 2 a 10)</label><textarea id="qo' + i + '" class="qo" rows="5">' + esc(q.opcoesTxt) + '</textarea></div><label class="sh"><input type="checkbox" class="qa"' + (q.ativa ? " checked" : "") + "> Mostrar esta pergunta na pesquisa</label>") + "</fieldset>";
-  }).join("") + '<section class="pnl qadd"><h3>Adicionar pergunta</h3><div class="row" style="align-items:end">' + sel("qnt", "Tipo da nova pergunta", TIPOS, "escala") + '<button type="button" class="btn o" id="qadd"' + (n >= MAXQ ? " disabled" : "") + '>+ Adicionar</button></div><p class="mut" style="margin:8px 0 0">' + n + " de " + MAXQ + ' perguntas.</p></section><div class="row"><button class="btn" id="qsave">Salvar alterações</button></div><p class="msg" id="qmsg" role="status"></p>';
+  }).join("") + '<section class="pnl qadd"><h3>Adicionar nova pergunta</h3><p class="mut">Selecione o formato da resposta e adicione a pergunta ao formulário deste setor.</p><div class="row qadd-controls">' + sel("qnt", "Formato da resposta", TIPOS, "escala") + '<button type="button" class="btn" id="qadd"' + (n >= MAXQ ? " disabled" : "") + '>+ Adicionar pergunta</button></div><p class="mut qcount" role="status">' + n + " de " + MAXQ + ' perguntas cadastradas.' + (n >= MAXQ ? ' Limite de perguntas atingido.' : '') + '</p></section><div class="row"><button type="button" class="btn" id="qsave">Salvar alterações</button></div><p class="msg" id="qmsg" role="status"></p>';
   var box = $("qed");
   box.oninput = function (e) {
     var f = e.target.closest(".qe"); if (!f) return; var q = QL[+f.dataset.i];
+    QDIRTY = true;
     if (e.target.classList.contains("qt")) q.texto = e.target.value; else if (e.target.classList.contains("qo")) q.opcoesTxt = e.target.value;
   };
   box.onchange = function (e) {
     var f = e.target.closest(".qe"); if (!f) return; var q = QL[+f.dataset.i];
+    QDIRTY = true;
     if (e.target.tagName === "SELECT") { q.tipo = e.target.value; f.querySelector(".qo-w").hidden = !(q.tipo === "positivos" || q.tipo === "negativos"); }
     else if (e.target.classList.contains("qa")) q.ativa = e.target.checked;
   };
@@ -274,29 +294,39 @@ function drawQ() {
     var b = e.target.closest("button"); if (!b || b.disabled) return;
     if (b.id === "qadd") {
       if (QL.length >= MAXQ) return;
-      var t = $("qnt").value; QL.push({ id: null, texto: "", tipo: t, opcoesTxt: t === "escala" ? "" : "", ativa: true }); drawQ();
+      var t = $("qnt").value;
+      var modelos = { escala: ["Como você avalia o atendimento prestado pela equipe?", ""], positivos: ["Quais aspectos do atendimento você considera positivos?", "Atenção da equipe\nClareza das informações\nConforto do ambiente"], negativos: ["Quais aspectos do atendimento precisam ser aprimorados?", "Tempo de espera\nClareza das informações\nNada a melhorar"] };
+      QDIRTY = true; QL.push({ id: null, texto: modelos[t][0], tipo: t, opcoesTxt: modelos[t][1], ativa: true }); drawQ();
       var ni = $("qt" + (QL.length - 1)); if (ni) ni.focus(); return;
     }
     if (b.id === "qsave") return salvarQ();
     var f = b.closest(".qe"); if (!f) return; var i = +f.dataset.i, a = b.dataset.a;
-    if (a === "up" && i > 0) { var x = QL[i]; QL[i] = QL[i - 1]; QL[i - 1] = x; drawQ(); }
-    else if (a === "down" && i < QL.length - 1) { var y = QL[i]; QL[i] = QL[i + 1]; QL[i + 1] = y; drawQ(); }
+    if (a === "up" && i > 0) { QDIRTY = true; var x = QL[i]; QL[i] = QL[i - 1]; QL[i - 1] = x; drawQ(); }
+    else if (a === "down" && i < QL.length - 1) { QDIRTY = true; var y = QL[i]; QL[i] = QL[i + 1]; QL[i + 1] = y; drawQ(); }
     else if (a === "del") {
       if (!window.confirm("Excluir esta pergunta? As respostas que ela já recebeu continuam guardadas nos resultados.")) return;
       if (QL[i].id) QREM.push(QL[i].id);
-      QL.splice(i, 1); drawQ();
+      QDIRTY = true; QL.splice(i, 1); drawQ();
     }
   };
 }
 function salvarQ() {
+  for (var i = 0; i < QL.length; i++) {
+    var q = QL[i], options = q.opcoesTxt.split("\n").map(function (x) { return x.trim(); }).filter(Boolean);
+    if (q.texto.trim().length < 5 || q.texto.trim().length > 160) { qmsg("Pergunta " + (i + 1) + ": informe um enunciado de 5 a 160 caracteres."); $("qt" + i).focus(); return; }
+    if ((q.tipo === "positivos" || q.tipo === "negativos") && (new Set(options).size < 2 || new Set(options).size > 10 || options.some(function (o) { return o.length > 40; }))) { qmsg("Pergunta " + (i + 1) + ": informe de 2 a 10 opções distintas, com até 40 caracteres cada."); $("qo" + i).focus(); return; }
+  }
   var out = QL.map(function (q) {
     var ch = q.tipo === "positivos" || q.tipo === "negativos";
     return { id: q.id || undefined, texto: q.texto, tipo: q.tipo, opcoes: ch ? q.opcoesTxt.split("\n").map(function (x) { return x.trim(); }).filter(Boolean) : null, ativa: q.tipo === "nps" ? true : q.ativa };
   }).concat(QREM.map(function (id) { return { id: id, remover: true }; }));
-  $("qsave").disabled = true; qmsg("Salvando...");
+  QBUSY = true;
+  document.querySelectorAll("#qed input,#qed select,#qed textarea,#qed button,#qs").forEach(function (el) { el.disabled = true; });
+  qmsg("Salvando...");
   api("PUT", "/api/admin/perguntas/" + QS, { perguntas: out })
-    .then(function () { loadQ(function () { qmsg("Perguntas salvas. Já valem para as próximas avaliações.", true); }); carregarSetores().catch(function () {}); })
-    .catch(function (e) { if (falhou(e)) return; qmsg(e.message); if ($("qsave")) $("qsave").disabled = false; });
+    .then(function () { QDIRTY = false; return loadQ(function () { qmsg("Perguntas salvas. As alterações serão aplicadas às próximas avaliações.", true); }); })
+    .catch(function (e) { if (falhou(e)) return; drawQ(); qmsg(e.message); })
+    .finally(function () { QBUSY = false; if ($("qs")) $("qs").disabled = false; });
 }
 
 /* ---------- Setores (só o gerente): criar, renomear, ordenar, ativar e desativar ---------- */
@@ -309,7 +339,7 @@ function baseUrl() {
 function baseLocal(b) { var h = ""; try { h = new URL(b).hostname; } catch (e) {} return /^(localhost|127\.|0\.0\.0\.0|\[?::1\]?$)/.test(h) || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h); }
 function qrUrl(s) { return "/qr.html?setor=" + encodeURIComponent(s.id) + "&nome=" + encodeURIComponent(s.nome) + "&base=" + encodeURIComponent(baseUrl()); }
 function viewSet() {
-  $("tab").innerHTML = '<p class="mut">Cadastre os departamentos do hospital. Cada setor novo nasce com 5 perguntas padrão (você ou o administrador do setor edita depois) e ganha o seu próprio link da pesquisa, que pode virar QR Code. Depois de criar, cadastre o administrador do setor na aba <strong>Equipe</strong>. Um setor <strong>desativado</strong> some da pesquisa e da TV, mas o histórico de avaliações fica guardado.</p>' +
+  $("tab").innerHTML = '<p class="mut">Cadastre os departamentos do hospital. Cada novo setor recebe cinco perguntas iniciais, que podem ser editadas pela gestão, e um link exclusivo para a pesquisa e a geração de QR Code. Depois de criar, cadastre o administrador do setor na aba <strong>Equipe</strong>. Um setor <strong>desativado</strong> deixa de ser exibido na pesquisa e na TV, e seu histórico de avaliações é preservado.</p>' +
     '<section class="pnl" style="margin-bottom:14px"><h3>Novo setor</h3><form id="sf" novalidate class="cards" style="align-items:end">' + fld("sn", "Nome do setor", "text", 'maxlength="60" autocomplete="off" required') + '<div class="fld"><button class="btn" type="submit">Adicionar setor</button></div></form><p class="msg" id="smsg" role="status"></p></section><section class="pnl" style="margin-bottom:14px"><h3>QR Codes e links da pesquisa</h3><div class="row" style="align-items:end"><div class="fld" style="flex:1;min-width:260px;margin:0"><label for="pub">Endereço do site (usado nos links e nos QR Codes)</label><input id="pub" type="url" inputmode="url" autocomplete="off" placeholder="https://avaliacao.seuhospital.com.br" value="' + esc(baseUrl()) + '"></div><button type="button" class="btn o" id="pubsave">Salvar endereço</button><button type="button" class="btn" id="qrall">Imprimir QR Codes de todos os setores</button></div><p class="msg" id="pubmsg" role="status"></p><p class="mut" style="margin:0">Cada setor tem o botão <strong>QR Code</strong> na lista abaixo: abre um cartaz pronto para imprimir (ou salvar em PDF) e permite baixar o QR em PNG ou SVG. O QR Code é gerado aqui mesmo, sem site externo. Cole o cartaz no setor e os pacientes avaliam apontando a câmera do celular.</p></section><div id="slist"></div>';
   function pubMsg() { var b = baseUrl(), m = $("pubmsg"); m.className = "msg"; m.textContent = baseLocal(b) ? "Atenção: " + b + " só funciona neste computador ou na rede interna. Informe o endereço onde o site estiver publicado antes de imprimir os cartazes." : ""; }
   pubMsg();
@@ -352,9 +382,10 @@ function drawSet() {
 /* ---------- Equipe (gerente: todas as contas; administrador: visualizadores do seu setor) ---------- */
 function viewEq() {
   api("GET", "/api/admin/usuarios").then(function (us) {
+    if (TAB !== "eq" || !ME) return;
     var opts = isG() ? [["admin", "Administrador de setor"], ["visualizador", "Visualizador (somente leitura)"], ["gerente", "Gerente (todos os setores)"]] : [["visualizador", "Visualizador do meu setor"]];
     $("tab").innerHTML = '<p class="mut">' + (isG()
-      ? "O <strong>gerente</strong> mexe em tudo. O <strong>administrador</strong> cuida de um setor (cada setor tem no máximo 1 administrador ativo). O <strong>visualizador</strong> só consulta os resultados e nunca vê telefones."
+      ? "O <strong>gerente</strong> gerencia todos os setores, resultados e contas. O <strong>administrador</strong> gerencia seu setor (cada setor tem no máximo 1 administrador ativo). O <strong>visualizador</strong> só consulta os resultados e nunca vê telefones."
       : "Crie contas de <strong>visualizador</strong> para o seu setor. Elas só consultam os resultados e nunca veem telefones. Apenas o gerente pode criar administradores.") + ' A senha tem de 8 a 72 caracteres.</p><section class="pnl" style="margin-bottom:14px"><h3>Nova conta</h3><form id="nf" novalidate class="cards" style="align-items:end">' +
       fld("nn", "Nome completo", "text", 'maxlength="100" autocomplete="off" required') + fld("ne", "E-mail", "email", 'maxlength="150" autocomplete="off" required') + fld("np", "Senha provisória", "password", 'autocomplete="new-password" required') +
       '<div class="fld"><label for="nr">Perfil</label><select id="nr">' + opts.map(function (o) { return '<option value="' + o[0] + '">' + o[1] + "</option>"; }).join("") + '</select></div><div class="fld" id="nsw"><label for="ns">Setor</label><select id="ns"></select></div><div class="fld"><button class="btn" type="submit">Criar conta</button></div></form><p class="msg" id="nmsg" role="status"></p></section>' +
