@@ -3,6 +3,7 @@ require('../config');
 const readline = require('readline');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../db');
+const { senhaValida, transacao } = require('../lib/seguranca');
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 // Guarda as linhas digitadas (funciona digitando no terminal ou colando/encadeando várias linhas)
@@ -17,14 +18,19 @@ const perguntar = (t) => { process.stdout.write(t); return new Promise((ok) => {
     const nome = (process.env.GERENTE_NOME || await perguntar('Nome do gerente: ')).trim();
     const email = (process.env.GERENTE_EMAIL || await perguntar('E-mail: ')).trim().toLowerCase();
     const senha = process.env.GERENTE_SENHA || await perguntar('Senha (mínimo 8 caracteres): ');
-    if (nome.length < 3 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || senha.length < 8 || senha.length > 72) {
-      console.error('Dados inválidos: nome com 3+ letras, e-mail válido e senha de 8 a 72 caracteres.');
+    if (nome.length < 3 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !senhaValida(senha)) {
+      console.error('Dados inválidos: nome com 3+ letras, e-mail válido e senha com pelo menos 8 caracteres e até 72 bytes.');
       process.exitCode = 1; return;
     }
     const hash = await bcrypt.hash(senha, 12);
-    const [r] = await pool.query(
+    const r = await transacao({}, 'usuario.gerente_terminal', 'usuario', result => result.usuarioId, async c => {
+    const [result] = await c.query(
       `INSERT INTO usuarios (nome, email, senha_hash, papel, setor_id) VALUES (?,?,?, 'gerente', NULL)
-       ON DUPLICATE KEY UPDATE nome = VALUES(nome), senha_hash = VALUES(senha_hash), papel = 'gerente', setor_id = NULL, ativo = 1`, [nome, email, hash]);
+       ON DUPLICATE KEY UPDATE nome = VALUES(nome), senha_hash = VALUES(senha_hash), papel = 'gerente', setor_id = NULL, ativo = 1,
+         trocar_senha=1, versao_sessao=versao_sessao+1, tentativas_falhas=0, bloqueado_ate=NULL`, [nome, email, hash]);
+    const [[usuario]] = await c.query('SELECT id FROM usuarios WHERE email=?', [email]);
+    return { ...result, usuarioId: usuario.id };
+    });
     console.log(r.affectedRows === 1 ? 'Gerente criado com sucesso.' : 'Gerente já existia: dados e senha atualizados.');
   } catch (e) {
     console.error('Não foi possível criar o gerente:', e.code || '', e.message);

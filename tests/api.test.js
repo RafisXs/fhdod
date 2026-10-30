@@ -13,8 +13,12 @@ const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:3000';
 const GERENTE = { email: process.env.TEST_GERENTE_EMAIL, senha: process.env.TEST_GERENTE_SENHA };
 const unico = Date.now();
+const { VERSAO_PRIVACIDADE } = require('../server/lib/privacidade');
 
 async function req(method, caminho, corpo, cookie) {
+  if (method === 'POST' && (caminho === '/api/avaliacoes' || caminho === '/api/avaliacoes/iniciar' || /\/concluir$/.test(caminho)) && corpo) {
+    corpo = { aceite_privacidade: true, privacidade_versao: VERSAO_PRIVACIDADE, ...corpo };
+  }
   const r = await fetch(BASE + caminho, {
     method,
     headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'fhdod', ...(cookie ? { Cookie: cookie } : {}) },
@@ -25,10 +29,35 @@ async function req(method, caminho, corpo, cookie) {
   const json = tipo.includes('json') ? await r.json() : null;
   return { status: r.status, json, headers: r.headers };
 }
+const senhasAtuais = new Map();
+test('Respostas da API não ficam em cache e corpos excessivos retornam 413', async () => {
+  const health = await req('GET', '/api/saude');
+  assert.equal(health.headers.get('cache-control'), 'no-store');
+  const oversized = await req('POST', '/api/avaliacoes', { texto: 'x'.repeat(22000) });
+  assert.equal(oversized.status, 413);
+  assert.equal(oversized.json.erro, 'Dados excedem o tamanho permitido.');
+});
+test('Privacidade: exige aceite explícito e versão atual antes de coletar ou concluir', async () => {
+  for (const body of [{ setor: 'rx' }, { setor: 'rx', aceite_privacidade: false, privacidade_versao: VERSAO_PRIVACIDADE }, { setor: 'rx', aceite_privacidade: 'true', privacidade_versao: VERSAO_PRIVACIDADE }, { setor: 'rx', aceite_privacidade: true, privacidade_versao: 'antiga' }]) {
+    const response = await fetch(BASE + '/api/avaliacoes/iniciar', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'fhdod' }, body: JSON.stringify(body) });
+    assert.equal(response.status, 400);
+  }
+  const invalid = await req('POST', '/api/avaliacoes', { aceite_privacidade: false });
+  assert.equal(invalid.status,400); assert.match(invalid.json.erro,/Privacidade/);
+  const conclude = await req('POST', '/api/avaliacoes/token-invalido/concluir', { aceite_privacidade: false });
+  assert.equal(conclude.status,400); assert.match(conclude.json.erro,/Privacidade/);
+});
 async function entrar(email, senha) {
+  senha = senhasAtuais.get(email) || senha;
   const r = await req('POST', '/api/login', { email, senha });
   assert.equal(r.status, 200, 'login deveria funcionar: ' + JSON.stringify(r.json));
-  return r.headers.get('set-cookie').split(';')[0];
+  const cookie = r.headers.get('set-cookie').split(';')[0];
+  if (!r.json.trocar_senha) return cookie;
+  const nova = senha + '-Pessoal';
+  const alterada = await req('POST', '/api/senha', { senha_atual: senha, nova_senha: nova }, cookie);
+  assert.equal(alterada.status, 200, 'troca da senha provisória');
+  senhasAtuais.set(email, nova);
+  return alterada.headers.get('set-cookie').split(';')[0];
 }
 const hoje = () => new Date().toISOString().slice(0, 10);
 

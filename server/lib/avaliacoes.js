@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { pool } = require('../db');
 const { asJson, inteiro, TURNOS, RESPONDENTES, TIPOS, ABAIXO_MEDIA, NPS_MAX_DETRATOR } = require('./util');
 const { escopo } = require('./auth');
+const { VERSAO_PRIVACIDADE, aceiteValido } = require('./privacidade');
 
 class ErroValidacao extends Error {}
 const falha = (msg) => { throw new ErroValidacao(msg); };
@@ -59,19 +60,20 @@ function resumo(respostas) {
 // ---------------------------------------------------------------------------
 const VALIDADE_RASCUNHO_HORAS = 24;
 
-async function iniciarRascunho(setor) {
+async function iniciarRascunho(setor, privacidade) {
+  if (!aceiteValido(privacidade)) falha('Leia e aceite o Aviso de Privacidade para participar da pesquisa.');
   setor = String(setor || '');
   const [[ok]] = await pool.query('SELECT COUNT(*) AS n FROM perguntas p JOIN setores s ON s.id = p.setor_id WHERE p.setor_id = ? AND p.ativa = 1 AND s.ativo = 1', [setor]);
   if (!ok.n) falha('Setor inválido.');
   const token = crypto.randomBytes(16).toString('hex');
-  await pool.query("INSERT INTO avaliacoes (setor_id, status, token) VALUES (?, 'rascunho', ?)", [setor, token]);
+  await pool.query("INSERT INTO avaliacoes (setor_id, status, token, privacidade_versao, privacidade_aceita_em) VALUES (?, 'rascunho', ?, ?, UTC_TIMESTAMP())", [setor, token, VERSAO_PRIVACIDADE]);
   return token;
 }
 
 async function buscarRascunho(db, token) {
   if (typeof token !== 'string' || !/^[0-9a-f]{32}$/.test(token)) falha('Avaliação não encontrada. Recarregue a página.');
   const [rows] = await db.query(
-    `SELECT id, setor_id FROM avaliacoes WHERE token = ? AND status = 'rascunho' AND criado_em >= DATE_SUB(NOW(), INTERVAL ? HOUR)`,
+    `SELECT id, setor_id FROM avaliacoes WHERE token = ? AND status = 'rascunho' AND privacidade_aceita_em IS NOT NULL AND privacidade_versao IS NOT NULL AND criado_em >= DATE_SUB(NOW(), INTERVAL ? HOUR)`,
     [token, VALIDADE_RASCUNHO_HORAS]);
   if (!rows.length) falha('Esta avaliação não está mais aberta. Recarregue a página para começar de novo.');
   return rows[0];
@@ -104,6 +106,7 @@ async function gravarResposta(token, r) {
 
 // Finaliza: confere tudo, grava o contexto (dia, turno...) e o telefone, e libera para os painéis
 async function concluirRascunho(token, p) {
+  if (!aceiteValido(p)) falha('Leia e aceite o Aviso de Privacidade para enviar a avaliação.');
   if (!p || typeof p !== 'object') falha('Dados inválidos.');
   const conn = await pool.getConnection();
   try {
@@ -133,8 +136,8 @@ async function concluirRascunho(token, p) {
     }
     await conn.query(
       `UPDATE avaliacoes SET status = 'concluida', token = NULL, data_atendimento = ?, turno = ?, respondente = ?, tipo_atendimento = ?,
-              telefone = ?, consentimento_contato = ?, criado_em = NOW() WHERE id = ?`,
-      [data, p.turno, p.respondente, p.tipo_atendimento, telefone || null, telefone ? 1 : 0, av.id]);
+              telefone = ?, consentimento_contato = ?, privacidade_aceita_em = IF(privacidade_versao = ?, privacidade_aceita_em, UTC_TIMESTAMP()), privacidade_versao = ?, criado_em = NOW() WHERE id = ?`,
+      [data, p.turno, p.respondente, p.tipo_atendimento, telefone || null, telefone ? 1 : 0, VERSAO_PRIVACIDADE, VERSAO_PRIVACIDADE, av.id]);
     await conn.commit();
     return { id: av.id, nps, media, abaixo };
   } catch (e) { try { await conn.rollback(); } catch { /* sem transação aberta */ } throw e; } finally { conn.release(); }
@@ -143,6 +146,7 @@ async function concluirRascunho(token, p) {
 // Envio completo de uma vez (usado pela API e pelos testes; a pesquisa usa a gravação em tempo real)
 async function registrarAvaliacao(p) {
   if (!p || typeof p !== 'object') falha('Dados inválidos.');
+  if (!aceiteValido(p)) falha('Leia e aceite o Aviso de Privacidade para enviar a avaliação.');
   const setor = String(p.setor || '');
   const [perg] = await pool.query('SELECT p.id, p.ordem, p.texto, p.tipo, p.opcoes FROM perguntas p JOIN setores s ON s.id = p.setor_id WHERE p.setor_id = ? AND p.ativa = 1 AND s.ativo = 1 ORDER BY p.ordem', [setor]);
   if (!perg.length) falha('Setor inválido.');
@@ -190,9 +194,9 @@ async function registrarAvaliacao(p) {
   try {
     await conn.beginTransaction();
     const [ins] = await conn.query(
-      `INSERT INTO avaliacoes (setor_id, nps, nota_media, abaixo_media, data_atendimento, turno, respondente, tipo_atendimento, telefone, consentimento_contato)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      [setor, nps, media, abaixo ? 1 : 0, data, p.turno, p.respondente, p.tipo_atendimento, telefone || null, telefone ? 1 : 0]);
+      `INSERT INTO avaliacoes (setor_id, nps, nota_media, abaixo_media, data_atendimento, turno, respondente, tipo_atendimento, telefone, consentimento_contato, privacidade_versao, privacidade_aceita_em)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP())`,
+      [setor, nps, media, abaixo ? 1 : 0, data, p.turno, p.respondente, p.tipo_atendimento, telefone || null, telefone ? 1 : 0, VERSAO_PRIVACIDADE]);
     await conn.query(
       'INSERT INTO respostas (avaliacao_id, pergunta_id, pergunta_texto, tipo, valor_num, valores) VALUES ?',
       [linhas.map((l) => [ins.insertId, ...l])]);

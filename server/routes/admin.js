@@ -3,6 +3,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const ExcelJS = require('exceljs');
 const { pool } = require('../db');
+const { auditar, transacao, senhaValida } = require('../lib/seguranca');
 const { exigirLogin, exigirPapel, podeSetor, escopo } = require('../lib/auth');
 const { carregarAvaliacoes } = require('../lib/avaliacoes');
 const { asJson, erro, inteiro, TURNOS, TIPOS, STATUS, MAX_PERGUNTAS, PERGUNTAS_PADRAO, celulaSegura } = require('../lib/util');
@@ -15,7 +16,23 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const equipe = exigirPapel('gerente', 'admin');
 
 // ---------- Avaliações (painel): todos os perfis, dentro do seu alcance ----------
-r.get('/avaliacoes', async (req, res) => res.json(await carregarAvaliacoes(req.user)));
+r.get('/avaliacoes', async (req, res) => {
+  const rows = await carregarAvaliacoes(req.user);
+  const ids = rows.filter(x => x.telefone).map(x => x.id);
+  if (ids.length) await auditar(pool, req, 'telefone.disponibilizado', 'avaliacao', null, { ids });
+  res.set('Cache-Control', 'no-store');
+  res.json(rows);
+});
+
+r.get('/auditoria', exigirPapel('gerente'), async (req, res) => {
+  const antes = /^\d+$/.test(String(req.query.antes || '')) ? req.query.antes : null;
+  const [rows] = await pool.query(`SELECT a.id, DATE_FORMAT(a.criado_em, '%Y-%m-%dT%H:%i:%sZ') AS criado_em,
+    a.usuario_id, u.nome AS usuario, a.acao, a.recurso, a.recurso_id, a.detalhes
+    FROM auditoria a LEFT JOIN usuarios u ON u.id=a.usuario_id
+    ${antes ? 'WHERE a.id < ?' : ''} ORDER BY a.id DESC LIMIT 100`, antes ? [antes] : []);
+  res.set('Cache-Control', 'no-store');
+  res.json(rows);
+});
 
 // ---------- Ao vivo: avaliações em andamento ou abandonadas (cada resposta já está no banco) ----------
 // Mostra quem está respondendo agora e o que já respondeu, mesmo sem terminar o formulário.
@@ -55,11 +72,13 @@ r.patch('/avaliacoes/:id/contato', equipe, async (req, res) => {
   const { status, obs, apagar } = req.body || {};
   if (!STATUS.includes(status)) return erro(res, 400, 'Situação inválida.');
   const texto = obs == null ? null : String(obs).trim().slice(0, 500) || null;
+  await transacao(req, apagar === true ? 'telefone.apagado' : 'contato.atualizado', 'avaliacao', id, async c => {
   if (apagar === true) {
-    await pool.query('UPDATE avaliacoes SET telefone = NULL, consentimento_contato = 0, contato_status = ?, contato_obs = ?, contato_em = NOW(), contato_por = ? WHERE id = ?', [status, texto, req.user.id, id]);
+    await c.query('UPDATE avaliacoes SET telefone = NULL, consentimento_contato = 0, contato_status = ?, contato_obs = ?, contato_em = NOW(), contato_por = ? WHERE id = ?', [status, texto, req.user.id, id]);
   } else {
-    await pool.query('UPDATE avaliacoes SET contato_status = ?, contato_obs = ?, contato_em = NOW(), contato_por = ? WHERE id = ?', [status, texto, req.user.id, id]);
+    await c.query('UPDATE avaliacoes SET contato_status = ?, contato_obs = ?, contato_em = NOW(), contato_por = ? WHERE id = ?', [status, texto, req.user.id, id]);
   }
+  });
   res.json({ ok: true });
 });
 
@@ -128,6 +147,7 @@ r.put('/perguntas/:setor', equipe, async (req, res) => {
       else await conn.query('INSERT INTO perguntas (setor_id, ordem, texto, tipo, opcoes, ativa) VALUES (?,?,?,?,?,?)', [setor, tmp, q.texto, q.tipo, q.opcoes, q.ativa]);
     }
     await conn.query('UPDATE perguntas SET ordem = ordem - 500 WHERE setor_id = ? AND ordem > 500', [setor]);
+    await auditar(conn, req, 'perguntas.alteradas', 'setor', setor);
     await conn.commit();
   } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
   res.json({ ok: true });
@@ -174,6 +194,7 @@ r.post('/setores', exigirPapel('gerente'), async (req, res) => {
       const q = PERGUNTAS_PADRAO[i];
       await conn.query('INSERT INTO perguntas (setor_id, ordem, texto, tipo, opcoes) VALUES (?,?,?,?,?)', [id, i + 1, q.texto, q.tipo, q.opcoes ? JSON.stringify(q.opcoes) : null]);
     }
+    await auditar(conn, req, 'setor.criado', 'setor', id);
     await conn.commit();
     res.status(201).json({ id, nome });
   } catch (e) { try { await conn.rollback(); } catch { /* sem transação */ } throw e; } finally { conn.release(); }
@@ -190,7 +211,7 @@ r.patch('/setores/:id', exigirPapel('gerente'), async (req, res) => {
     if (!nome) return erro(res, 400, 'Informe o nome do setor (de 3 a 60 caracteres).');
     const [dup] = await pool.query('SELECT 1 FROM setores WHERE nome = ? AND id <> ?', [nome, id]);
     if (dup.length) return erro(res, 409, 'Já existe um setor com este nome.');
-    await pool.query('UPDATE setores SET nome = ? WHERE id = ?', [nome, id]);
+    await transacao(req, 'setor.renomeado', 'setor', id, c => c.query('UPDATE setores SET nome = ? WHERE id = ?', [nome, id]));
   }
   if (b.ativo !== undefined) {
     if (typeof b.ativo !== 'boolean') return erro(res, 400, 'Dados inválidos.');
@@ -198,7 +219,7 @@ r.patch('/setores/:id', exigirPapel('gerente'), async (req, res) => {
       const [[c]] = await pool.query('SELECT COUNT(*) AS n FROM setores WHERE ativo = 1 AND id <> ?', [id]);
       if (!c.n) return erro(res, 400, 'Mantenha pelo menos um setor ativo na pesquisa.');
     }
-    await pool.query('UPDATE setores SET ativo = ? WHERE id = ?', [b.ativo ? 1 : 0, id]);
+    await transacao(req, b.ativo ? 'setor.ativado' : 'setor.desativado', 'setor', id, c => c.query('UPDATE setores SET ativo = ? WHERE id = ?', [b.ativo ? 1 : 0, id]));
   }
   if (b.mover !== undefined) {
     const dir = b.mover === 'cima' ? -1 : b.mover === 'baixo' ? 1 : 0;
@@ -211,6 +232,7 @@ r.patch('/setores/:id', exigirPapel('gerente'), async (req, res) => {
       try {
         await conn.beginTransaction();
         for (let k = 0; k < todos.length; k++) await conn.query('UPDATE setores SET ordem = ? WHERE id = ?', [k + 1, todos[k].id]);
+        await auditar(conn, req, 'setor.reordenado', 'setor', id);
         await conn.commit();
       } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
     }
@@ -330,7 +352,7 @@ async function validarUsuario(b, alvo) {
   const out = {};
   if (!alvo || b.nome !== undefined) { out.nome = String(b.nome || '').trim(); if (out.nome.length < 3 || out.nome.length > 100) throw new Error('Informe o nome (3 a 100 caracteres).'); }
   if (!alvo) { out.email = String(b.email || '').trim().toLowerCase(); if (!EMAIL_RE.test(out.email) || out.email.length > 150) throw new Error('E-mail inválido.'); }
-  if (!alvo || b.senha) { const s = String(b.senha || ''); if (s.length < 8 || s.length > 72) throw new Error('A senha deve ter de 8 a 72 caracteres.'); out.senha_hash = await bcrypt.hash(s, 12); }
+  if (!alvo || b.senha) { const s = String(b.senha || ''); if (!senhaValida(s)) throw new Error('A senha deve ter pelo menos 8 caracteres e até 72 bytes.'); out.senha_hash = await bcrypt.hash(s, 12); }
   if (!alvo || b.papel !== undefined || b.setor_id !== undefined) {
     const papel = b.papel !== undefined ? b.papel : alvo.papel;
     if (!PAPEIS.includes(papel)) throw new Error('Perfil inválido.');
@@ -365,7 +387,10 @@ r.post('/usuarios', equipe, async (req, res) => {
   let d;
   try { d = await validarUsuario(b, null); } catch (e) { return erro(res, 400, e.message); }
   try {
-    const [ins] = await pool.query('INSERT INTO usuarios (nome, email, senha_hash, papel, setor_id) VALUES (?,?,?,?,?)', [d.nome, d.email, d.senha_hash, d.papel, d.setor_id]);
+    const ins = await transacao(req, 'usuario.criado', 'usuario', created => created.insertId, async c => {
+      const [created] = await c.query('INSERT INTO usuarios (nome, email, senha_hash, papel, setor_id, trocar_senha) VALUES (?,?,?,?,?,1)', [d.nome, d.email, d.senha_hash, d.papel, d.setor_id]);
+      return created;
+    });
     res.status(201).json({ id: ins.insertId });
   } catch (e) { return erroDuplicado(e, res); }
 });
@@ -390,7 +415,10 @@ r.patch('/usuarios/:id', equipe, async (req, res) => {
   for (const k of ['nome', 'senha_hash', 'papel', 'setor_id']) if (d[k] !== undefined) { campos.push(`${k} = ?`); vals.push(d[k]); }
   if (b.ativo !== undefined) { campos.push('ativo = ?'); vals.push(novoAtivo ? 1 : 0); }
   if (!campos.length) return erro(res, 400, 'Nada para alterar.');
-  try { await pool.query(`UPDATE usuarios SET ${campos.join(', ')} WHERE id = ?`, [...vals, id]); } catch (e) { return erroDuplicado(e, res); }
+  if (d.senha_hash) campos.push('trocar_senha=1', 'tentativas_falhas=0', 'bloqueado_ate=NULL');
+  campos.push('versao_sessao=versao_sessao+1');
+  try { await transacao(req, d.senha_hash ? 'usuario.senha_redefinida' : b.ativo !== undefined ? (novoAtivo ? 'usuario.ativado' : 'usuario.desativado') : 'usuario.alterado', 'usuario', id,
+    c => c.query(`UPDATE usuarios SET ${campos.join(', ')} WHERE id = ?`, [...vals, id])); } catch (e) { return erroDuplicado(e, res); }
   res.json({ ok: true });
 });
 

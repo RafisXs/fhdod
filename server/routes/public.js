@@ -5,6 +5,8 @@ const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const { pool } = require('../db');
 const { emitirLogin, sairLogin, exigirLogin } = require('../lib/auth');
+const { auditar, falhaSenha, alterarSenha } = require('../lib/seguranca');
+const { VERSAO_PRIVACIDADE } = require('../lib/privacidade');
 const { registrarAvaliacao, iniciarRascunho, gravarResposta, concluirRascunho, ErroValidacao } = require('../lib/avaliacoes');
 const { asJson, erro, ABAIXO_MEDIA, NPS_MAX_DETRATOR } = require('../lib/util');
 
@@ -24,6 +26,7 @@ r.get('/perguntas', async (req, res) => {
   res.json({
     setores,
     limites: { abaixoMedia: ABAIXO_MEDIA, npsMaxDetrator: NPS_MAX_DETRATOR },
+    privacidade: { versao: VERSAO_PRIVACIDADE, url: '/privacidade.html' },
     perguntas: perg.map((q) => ({ ...q, opcoes: asJson(q.opcoes) })),
   });
 });
@@ -48,7 +51,7 @@ const aoValidar = (fn) => async (req, res) => {
   }
 };
 r.post('/avaliacoes/iniciar', limite(600, 15, 'Muitos envios deste endereço. Tente novamente em alguns minutos.'), aoValidar(async (req, res) => {
-  const token = await iniciarRascunho(req.body && req.body.setor);
+  const token = await iniciarRascunho(req.body && req.body.setor, req.body);
   res.status(201).json({ token });
 }));
 r.put('/avaliacoes/:token/resposta', limite(6000, 15, 'Muitos envios deste endereço. Tente novamente em alguns minutos.'), aoValidar(async (req, res) => {
@@ -65,19 +68,37 @@ const HASH_FALSO = bcrypt.hashSync('senha-falsa-para-igualar-o-tempo', 12);
 r.post('/login', limite(10, 15, 'Muitas tentativas de login. Aguarde 15 minutos.'), async (req, res) => {
   const email = String((req.body && req.body.email) || '').trim().toLowerCase();
   const senha = String((req.body && req.body.senha) || '');
-  const [rows] = await pool.query('SELECT id, nome, email, senha_hash, papel, setor_id, ativo FROM usuarios WHERE email = ?', [email]);
-  const u = rows[0];
-  const ok = await bcrypt.compare(senha, u ? u.senha_hash : HASH_FALSO); // mesmo tempo com ou sem usuário
-  if (!u || !u.ativo || !ok) return erro(res, 401, 'E-mail ou senha incorretos.');
-  emitirLogin(res, u);
-  res.json({ nome: u.nome, email: u.email, papel: u.papel, setor_id: u.setor_id });
+  const c = await pool.getConnection();
+  try {
+    await c.beginTransaction();
+    const [[u]] = await c.query('SELECT *, bloqueado_ate > UTC_TIMESTAMP() AS bloqueado FROM usuarios WHERE email=? FOR UPDATE', [email]);
+    const ok = await bcrypt.compare(Buffer.byteLength(senha, 'utf8') <= 72 ? senha : '', u ? u.senha_hash : HASH_FALSO);
+    if (!u || !u.ativo || !ok || u.bloqueado) {
+      if (u && u.ativo && !u.bloqueado) await falhaSenha(c, u);
+      await auditar(c, { user: u }, 'login.recusado', 'usuario', u ? u.id : null);
+      await c.commit();
+      return erro(res, 401, 'Não foi possível entrar. Confira as credenciais; após 5 falhas, aguarde 15 minutos.');
+    }
+    await c.query('UPDATE usuarios SET tentativas_falhas=0, bloqueado_ate=NULL WHERE id=?', [u.id]);
+    await auditar(c, { user: u }, 'login.sucesso', 'usuario', u.id);
+    await c.commit();
+    emitirLogin(res, u);
+    res.json({ nome: u.nome, email: u.email, papel: u.papel, setor_id: u.setor_id, trocar_senha: !!u.trocar_senha });
+  } catch (e) { await c.rollback(); throw e; } finally { c.release(); }
 });
 
 r.post('/logout', (req, res) => { sairLogin(res); res.json({ ok: true }); });
 
 r.get('/me', exigirLogin, (req, res) => {
-  const { nome, email, papel, setor_id } = req.user;
-  res.json({ nome, email, papel, setor_id });
+  const { nome, email, papel, setor_id, trocar_senha } = req.user;
+  res.json({ nome, email, papel, setor_id, trocar_senha: !!trocar_senha });
+});
+
+r.post('/senha', limite(10, 15, 'Muitas tentativas. Aguarde 15 minutos.'), exigirLogin, async (req, res) => {
+  const result = await alterarSenha(req, req.body && req.body.senha_atual, req.body && req.body.nova_senha);
+  if (result.erro) return erro(res, result.status, result.erro);
+  emitirLogin(res, result.usuario);
+  res.json({ ok: true });
 });
 
 // ---- TV Wall: só números agregados, nunca dados de pacientes ----

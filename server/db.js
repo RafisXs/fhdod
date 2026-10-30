@@ -39,7 +39,6 @@ async function testarConexao() {
   } catch (e) {
     console.error('FALHA ao conectar no banco de dados.');
     console.error(`  Código: ${e.code || 'desconhecido'}`);
-    console.error(`  Mensagem: ${e.message}`);
     console.error(`  Dica: ${explicarErro(e)}`);
     return false;
   }

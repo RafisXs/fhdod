@@ -25,6 +25,8 @@ app.use(helmet({
 }));
 app.use(express.json({ limit: '20kb' }));
 app.use(cookieParser());
+// Impede cache compartilhado de respostas autenticadas e dados de contato.
+app.use('/api', (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 
 app.use('/api', exigirCabecalho, require('./routes/public'));
 app.use('/api/admin', require('./routes/admin'));
@@ -35,12 +37,15 @@ app.use(express.static(path.join(__dirname, '..', 'public'), { extensions: ['htm
 // Tratamento de erros: mensagens amigáveis, sem vazar detalhes internos
 app.use((e, req, res, next) => {
   if (e.type === 'entity.parse.failed') return res.status(400).json({ erro: 'Dados inválidos.' });
-  console.error(`[erro] ${req.method} ${req.originalUrl}:`, e.code || '', e.message);
+  if (e.type === 'entity.too.large') return res.status(413).json({ erro: 'Dados excedem o tamanho permitido.' });
+  // Mensagens SQL e query strings podem conter dados pessoais ou tokens.
+  console.error('[erro]', req.method, e.code || 'INTERNO');
   if (e.code && /^(ER_|E[A-Z]+$)/.test(e.code)) return res.status(503).json({ erro: 'Banco de dados indisponível.', dica: explicarErro(e) });
   res.status(500).json({ erro: 'Erro interno. Tente novamente.' });
 });
 
 const PORT = Number(process.env.PORT || 3000);
+const HOST = process.env.HOST || '0.0.0.0';
 (async () => {
   if (!segredoValido(process.env.JWT_SECRET)) {
     console.error('FALHA: defina JWT_SECRET no arquivo .env com um texto longo e aleatório (mínimo 24 caracteres e diferente do exemplo do .env.example). Veja a seção "Variáveis de ambiente" do README.');
@@ -52,9 +57,9 @@ const PORT = Number(process.env.PORT || 3000);
       const feitos = await migrar(pool);
       if (feitos.length) console.log('Banco atualizado: ' + feitos.join('; ') + '.');
     } catch (e) { console.error('FALHA ao atualizar o banco (rode "npm run migrar" e veja a mensagem):', e.code || '', e.message); process.exit(1); }
-  }
+  } else { await pool.end(); process.exit(1); }
   // No Express 5, se a porta não puder ser usada o erro chega aqui: não anunciar sucesso nesse caso
-  app.listen(PORT, (err) => {
+  app.listen(PORT, HOST, (err) => {
     if (err) {
       console.error(err.code === 'EADDRINUSE'
         ? `FALHA: a porta ${PORT} já está em uso (provavelmente o servidor já está rodando em outro terminal). Feche o outro ou mude PORT no arquivo .env.`

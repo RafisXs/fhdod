@@ -49,6 +49,10 @@ CREATE TABLE IF NOT EXISTS usuarios (
   nome       VARCHAR(100) NOT NULL,
   email      VARCHAR(150) NOT NULL,
   senha_hash VARCHAR(100) NOT NULL,
+  trocar_senha TINYINT(1) NOT NULL DEFAULT 1,
+  versao_sessao INT UNSIGNED NOT NULL DEFAULT 0,
+  tentativas_falhas INT UNSIGNED NOT NULL DEFAULT 0,
+  bloqueado_ate DATETIME NULL,
   papel      ENUM('gerente','admin','visualizador') NOT NULL,
   setor_id   VARCHAR(10)  NULL,
   ativo      TINYINT(1)   NOT NULL DEFAULT 1,
@@ -97,6 +101,8 @@ CREATE TABLE IF NOT EXISTS perguntas (
 --    telefone: opcional, só quando a nota é abaixo da média e há autorização
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS avaliacoes (
+  privacidade_versao VARCHAR(32) NULL,
+  privacidade_aceita_em DATETIME NULL,
   id                   BIGINT       NOT NULL AUTO_INCREMENT,
   criado_em            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -151,6 +157,18 @@ CREATE TABLE IF NOT EXISTS respostas (
 -- =====================================================================
 -- DADOS INICIAIS
 -- =====================================================================
+CREATE TABLE IF NOT EXISTS auditoria (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  usuario_id INT NULL,
+  acao VARCHAR(60) NOT NULL,
+  recurso VARCHAR(40) NOT NULL,
+  recurso_id VARCHAR(100) NULL,
+  detalhes JSON NULL,
+  KEY ix_auditoria_data (criado_em),
+  KEY ix_auditoria_usuario (usuario_id, criado_em)
+) ENGINE=InnoDB;
+
 INSERT IGNORE INTO setores (id, nome, ordem, origem) VALUES
   ('rec',  'Recepção',                  1, 'prototipo'),
   ('pa',   'Pronto Atendimento',        2, 'site_oficial'),

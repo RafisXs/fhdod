@@ -15,7 +15,7 @@ function segredo() {
 }
 
 function emitirLogin(res, usuario) {
-  const token = jwt.sign({ id: usuario.id }, segredo(), { expiresIn: '8h' });
+  const token = jwt.sign({ id: usuario.id, sv: Number(usuario.versao_sessao || 0) }, segredo(), { expiresIn: '8h' });
   res.cookie(COOKIE, token, {
     httpOnly: true,                 // o JavaScript da página não consegue ler o cookie
     sameSite: 'strict',             // não é enviado por outros sites
@@ -33,10 +33,12 @@ async function exigirLogin(req, res, next) {
   if (!token) return erro(res, 401, 'Faça login para continuar.');
   let payload;
   try { payload = jwt.verify(token, segredo()); } catch { return erro(res, 401, 'Sessão expirada. Entre novamente.'); }
-  const [rows] = await pool.query('SELECT id, nome, email, papel, setor_id, ativo FROM usuarios WHERE id = ?', [payload.id]);
+  const [rows] = await pool.query('SELECT id, nome, email, papel, setor_id, ativo, trocar_senha, versao_sessao FROM usuarios WHERE id = ?', [payload.id]);
   const u = rows[0];
   if (!u || !u.ativo) return erro(res, 401, 'Conta desativada ou inexistente.');
+  if (Number(payload.sv || 0) !== Number(u.versao_sessao)) return erro(res, 401, 'Sessão expirada. Entre novamente.');
   req.user = u;
+  if (u.trocar_senha && !['/me', '/senha'].includes(req.path)) return res.status(403).json({ erro: 'Altere sua senha provisória para continuar.', codigo: 'TROCAR_SENHA' });
   next();
 }
 
