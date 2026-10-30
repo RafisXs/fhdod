@@ -18,7 +18,7 @@ main{padding:18px 12px 40px;display:grid;gap:18px;justify-items:center}
 .cartaz img.logo{height:clamp(40px,9vw,78px);width:auto}
 .cartaz h2{margin:3.5% 0 0;font-size:clamp(22px,5.4vw,44px);line-height:1.15}
 .cartaz .setor{margin:2% 0 0;font-size:clamp(20px,5vw,40px);font-weight:800;color:var(--red);line-height:1.15}
-.cartaz .qr{margin:3.5% 0 0;width:62%;max-width:480px;padding:2.5%;border:3px solid var(--ink);border-radius:14px;background:#fff}
+.cartaz .qr{margin:3.5% 0 0;width:85%;max-width:480px;flex-shrink:0;padding:2.5%;border:3px solid var(--ink);border-radius:14px;background:#fff}
 .cartaz .qr svg{display:block;width:100%;height:auto}
 .cartaz .como{margin:3.5% 0 0;font-size:clamp(15px,3vw,24px);font-weight:600}
 .cartaz .anon{margin:1.5% 0 0;color:var(--mut);font-size:clamp(13px,2.4vw,19px)}

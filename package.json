@@ -9,7 +9,9 @@
     "criar-gerente": "node server/scripts/criar-gerente.js",
     "migrar": "node server/scripts/migrar.js",
     "test": "node --test tests/api.test.js",
-    "test:painel": "node tests/painel.test.cjs"
+    "test:painel": "node tests/painel.test.cjs",
+    "test:seguranca": "node --test tests/seguranca.test.js",
+    "lint": "node server/scripts/verificar-sintaxe.js"
   },
   "engines": {
     "node": ">=18"

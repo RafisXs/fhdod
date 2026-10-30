@@ -75,7 +75,7 @@ function body(rows) {
     '<section class="pnl w2"><h3>Resultado por setor</h3><div class="tbl-wrap"><table class="tbl"><caption class="sr">Resultado por setor</caption><thead><tr><th>Setor</th><th>Resp.</th><th>Nota</th><th>NPS</th><th>Satisf.</th><th>Abaixo da média</th><th>Mais elogiado</th><th>Mais a melhorar</th></tr></thead><tbody>' + trs + '</tbody></table></div><p class="mut" style="margin:8px 0 0">Ordenado da menor para a maior nota. "Atenção" aparece nos setores com nota média abaixo de 3.</p></section></div>';
 }
 
-function falhou(e) { if (e.status === 401) { pararVivo(); ME = null; DATA = []; UPDT = null; loginView("Sessão expirada. Entre novamente."); return true; } return false; }
+function falhou(e) { if (e.codigo === "TROCAR_SENHA") { if (ME) ME.trocar_senha = true; viewSenha(); return true; } if (e.status === 401) { pararVivo(); ME = null; DATA = []; UPDT = null; loginView("Sessão expirada. Entre novamente."); return true; } return false; }
 var DATA_REQUEST = 0;
 function loadData(cb) {
   var request = ++DATA_REQUEST, me = ME;
@@ -94,6 +94,7 @@ function carregarSetores() { return api("GET", "/api/admin/setores").then(functi
 function setOpts() { return S.map(function (s) { return [s.id, s.nome + (s.ativo === false ? " (desativado)" : "")]; }); }
 function entrou(me) {
   ME = me; DATA = []; UPDT = null; TAB = "res"; CT = { st: "pendente", s: "" }; VIVOCOUNT = null;
+  if (me.trocar_senha) { viewSenha(); return; }
   carregarSetores().then(function () { F.s = all() ? "" : ME.setor_id; shell(); }).catch(function (e) { if (!falhou(e)) erroTela(e); });
 }
 
@@ -121,7 +122,7 @@ function loginView(aviso) {
 }
 
 function shell() {
-  var tabs = [["res", "Resultados"]].concat(isV() ? [] : [["ctt", "Contatos"], ["per", "Perguntas"]].concat(isG() ? [["set", "Setores"]] : []).concat([["eq", "Equipe"]]));
+  var tabs = [["res", "Resultados"]].concat(isV() ? [] : [["ctt", "Contatos"], ["per", "Perguntas"]].concat(isG() ? [["set", "Setores"], ["audit", "Auditoria"]] : []).concat([["eq", "Equipe"]])).concat([["senha", "Alterar minha senha"]]);
   draw('<div class="dtop"><p class="who"><strong>' + esc(ME.nome) + '</strong><br><span class="mut">' + esc(papelTxt(ME)) + '</span></p><span class="sp"></span>' + (isG() ? '<a class="ghost" href="/tv.html" target="_blank" rel="noopener">TV Wall</a>' : "") + '<button class="ghost" id="out">Sair</button></div><nav class="tabs" aria-label="Seções">' + tabs.map(function (t) { return '<button id="t-' + t[0] + '" data-t="' + t[0] + '">' + t[1] + "</button>"; }).join("") + '</nav><div id="tab"><p class="mut">Carregando…</p></div>');
   app.classList.add("wide");
   $("out").onclick = function () { pararVivo(); api("POST", "/api/logout").then(function () { ME = null; DATA = []; UPDT = null; loginView(); }, function () { loginView(); }); };
@@ -135,7 +136,7 @@ function setTab(t) {
   TAB = t;
   pararVivo();
   document.querySelectorAll(".tabs button").forEach(function (b) { if (b.dataset.t === t) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
-  ({ res: viewRes, ctt: viewCtt, per: viewPer, set: viewSet, eq: viewEq })[t]();
+  ({ res: viewRes, ctt: viewCtt, per: viewPer, set: viewSet, eq: viewEq, senha: viewSenha, audit: viewAuditoria })[t]();
   if (t === "res") iniciarVivo();
 }
 
@@ -334,21 +335,29 @@ function salvarQ() {
 function baseUrl() {
   var b = ""; try { b = localStorage.getItem("fhdod_base") || ""; } catch (e) {}
   b = String(b).trim().replace(/\/+$/, "");
-  return /^https?:\/\/[^\s<>"']+$/i.test(b) ? b : location.origin;
+  return origemPublica(b) || location.origin;
+}
+function origemPublica(value) {
+  try {
+    var u = new URL(value);
+    return /^https?:$/.test(u.protocol) && !u.username && !u.password && !u.search && !u.hash && u.pathname === '/' && u.origin.length <= 300 ? u.origin : '';
+  } catch (e) { return ''; }
 }
 function baseLocal(b) { var h = ""; try { h = new URL(b).hostname; } catch (e) {} return /^(localhost|127\.|0\.0\.0\.0|\[?::1\]?$)/.test(h) || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h); }
 function qrUrl(s) { return "/qr.html?setor=" + encodeURIComponent(s.id) + "&nome=" + encodeURIComponent(s.nome) + "&base=" + encodeURIComponent(baseUrl()); }
 function viewSet() {
   $("tab").innerHTML = '<p class="mut">Cadastre os departamentos do hospital. Cada novo setor recebe cinco perguntas iniciais, que podem ser editadas pela gestão, e um link exclusivo para a pesquisa e a geração de QR Code. Depois de criar, cadastre o administrador do setor na aba <strong>Equipe</strong>. Um setor <strong>desativado</strong> deixa de ser exibido na pesquisa e na TV, e seu histórico de avaliações é preservado.</p>' +
-    '<section class="pnl" style="margin-bottom:14px"><h3>Novo setor</h3><form id="sf" novalidate class="cards" style="align-items:end">' + fld("sn", "Nome do setor", "text", 'maxlength="60" autocomplete="off" required') + '<div class="fld"><button class="btn" type="submit">Adicionar setor</button></div></form><p class="msg" id="smsg" role="status"></p></section><section class="pnl" style="margin-bottom:14px"><h3>QR Codes e links da pesquisa</h3><div class="row" style="align-items:end"><div class="fld" style="flex:1;min-width:260px;margin:0"><label for="pub">Endereço do site (usado nos links e nos QR Codes)</label><input id="pub" type="url" inputmode="url" autocomplete="off" placeholder="https://avaliacao.seuhospital.com.br" value="' + esc(baseUrl()) + '"></div><button type="button" class="btn o" id="pubsave">Salvar endereço</button><button type="button" class="btn" id="qrall">Imprimir QR Codes de todos os setores</button></div><p class="msg" id="pubmsg" role="status"></p><p class="mut" style="margin:0">Cada setor tem o botão <strong>QR Code</strong> na lista abaixo: abre um cartaz pronto para imprimir (ou salvar em PDF) e permite baixar o QR em PNG ou SVG. O QR Code é gerado aqui mesmo, sem site externo. Cole o cartaz no setor e os pacientes avaliam apontando a câmera do celular.</p></section><div id="slist"></div>';
+    '<section class="pnl" style="margin-bottom:14px"><h3>Novo setor</h3><form id="sf" novalidate class="cards" style="align-items:end">' + fld("sn", "Nome do setor", "text", 'maxlength="60" autocomplete="off" required') + '<div class="fld"><button class="btn" type="submit">Adicionar setor</button></div></form><p class="msg" id="smsg" role="status"></p></section><section class="pnl" style="margin-bottom:14px"><h3>QR Codes e links da pesquisa</h3><div class="row" style="align-items:end"><div class="fld" style="flex:1 1 260px;min-width:0;margin:0"><label for="pub">Endereço do site (usado nos links e nos QR Codes)</label><input id="pub" type="url" inputmode="url" autocomplete="off" placeholder="https://avaliacao.seuhospital.com.br" value="' + esc(baseUrl()) + '"></div><button type="button" class="btn o" id="pubsave">Salvar endereço</button><button type="button" class="btn" id="qrgeral">Imprimir QR Code geral</button><button type="button" class="btn" id="qrall">Imprimir QR Codes de todos os setores</button></div><p class="msg" id="pubmsg" role="status"></p><p class="mut" style="margin:0">Cada setor tem o botão <strong>QR Code</strong> na lista abaixo: abre um cartaz pronto para imprimir (ou salvar em PDF) e permite baixar o QR em PNG ou SVG. O QR Code é gerado aqui mesmo, sem site externo. Cole o cartaz no setor e os pacientes avaliam apontando a câmera do celular.</p></section><div id="slist"></div>';
   function pubMsg() { var b = baseUrl(), m = $("pubmsg"); m.className = "msg"; m.textContent = baseLocal(b) ? "Atenção: " + b + " só funciona neste computador ou na rede interna. Informe o endereço onde o site estiver publicado antes de imprimir os cartazes." : ""; }
   pubMsg();
   $("pubsave").onclick = function () {
     var v = $("pub").value.trim().replace(/\/+$/, ""), m = $("pubmsg");
-    if (!/^https?:\/\/[^\s<>"']+$/i.test(v)) { m.className = "msg"; m.textContent = "Endereço inválido. Use o formato https://seu-site.com.br"; return; }
+    v = origemPublica(v);
+    if (!v) { m.className = "msg"; m.textContent = "Endereço inválido. Use o formato https://seu-site.com.br, sem caminho, parâmetros ou credenciais."; return; }
     try { localStorage.setItem("fhdod_base", v); } catch (e) {}
     drawSet(); pubMsg(); if (!baseLocal(v)) { m.className = "msg ok"; m.textContent = "Endereço salvo neste navegador. Os links e QR Codes já usam ele."; }
   };
+  $("qrgeral").onclick = function () { window.open("/qr.html?geral=1&base=" + encodeURIComponent(baseUrl()), "_blank", "noopener"); };
   $("qrall").onclick = function () { window.open("/qr.html?todos=1&base=" + encodeURIComponent(baseUrl()), "_blank", "noopener"); };
   $("sf").onsubmit = function (e) {
     e.preventDefault(); var m = $("smsg"); m.className = "msg"; m.textContent = "Criando...";
@@ -386,7 +395,7 @@ function viewEq() {
     var opts = isG() ? [["admin", "Administrador de setor"], ["visualizador", "Visualizador (somente leitura)"], ["gerente", "Gerente (todos os setores)"]] : [["visualizador", "Visualizador do meu setor"]];
     $("tab").innerHTML = '<p class="mut">' + (isG()
       ? "O <strong>gerente</strong> gerencia todos os setores, resultados e contas. O <strong>administrador</strong> gerencia seu setor (cada setor tem no máximo 1 administrador ativo). O <strong>visualizador</strong> só consulta os resultados e nunca vê telefones."
-      : "Crie contas de <strong>visualizador</strong> para o seu setor. Elas só consultam os resultados e nunca veem telefones. Apenas o gerente pode criar administradores.") + ' A senha tem de 8 a 72 caracteres.</p><section class="pnl" style="margin-bottom:14px"><h3>Nova conta</h3><form id="nf" novalidate class="cards" style="align-items:end">' +
+      : "Crie contas de <strong>visualizador</strong> para o seu setor. Elas só consultam os resultados e nunca veem telefones. Apenas o gerente pode criar administradores.") + ' A senha provisória deve ter pelo menos 8 caracteres e até 72 bytes. A pessoa deverá trocá-la no primeiro acesso.</p><section class="pnl" style="margin-bottom:14px"><h3>Nova conta</h3><form id="nf" novalidate class="cards" style="align-items:end">' +
       fld("nn", "Nome completo", "text", 'maxlength="100" autocomplete="off" required') + fld("ne", "E-mail", "email", 'maxlength="150" autocomplete="off" required') + fld("np", "Senha provisória", "password", 'autocomplete="new-password" required') +
       '<div class="fld"><label for="nr">Perfil</label><select id="nr">' + opts.map(function (o) { return '<option value="' + o[0] + '">' + o[1] + "</option>"; }).join("") + '</select></div><div class="fld" id="nsw"><label for="ns">Setor</label><select id="ns"></select></div><div class="fld"><button class="btn" type="submit">Criar conta</button></div></form><p class="msg" id="nmsg" role="status"></p></section>' +
       '<div class="box tbl-wrap"><table class="tbl"><caption class="sr">Contas da equipe</caption><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Situação</th><th>Ações</th></tr></thead><tbody>' + (us.length ? us.map(function (u) {
@@ -409,12 +418,57 @@ function viewEq() {
       b.onclick = function () {
         var id = +b.closest("tr").dataset.id, m = $("emsg"), corpo;
         if (b.dataset.a === "tog") corpo = { ativo: b.textContent === "Ativar" };
-        else { var s = prompt("Digite a nova senha (8 a 72 caracteres):"); if (!s) return; corpo = { senha: s }; }
+        else { var s = prompt("Defina uma senha provisória (pelo menos 8 caracteres e até 72 bytes). A troca será obrigatória no próximo acesso:"); if (!s) return; corpo = { senha: s }; }
         m.className = "msg"; m.textContent = "Salvando...";
         api("PATCH", "/api/admin/usuarios/" + id, corpo).then(function () { if (corpo.senha) { m.className = "msg ok"; m.textContent = "Senha alterada."; } else viewEq(); }).catch(function (x) { if (!falhou(x)) m.textContent = x.message; });
       };
     });
   }).catch(function (e) { if (!falhou(e)) $("tab").innerHTML = '<div class="note">' + esc(e.message) + "</div>"; });
+}
+
+function viewSenha() {
+  pararVivo(); TAB = "senha";
+  draw('<section class="pnl senha-card"><h1>Alterar minha senha</h1><p class="mut">' + (ME && ME.trocar_senha ? 'Defina uma senha pessoal para substituir sua senha provisória e liberar o acesso ao painel.' : 'Informe sua senha atual e escolha uma nova senha pessoal.') + '</p><form id="senha-form">' +
+    fld('senha-atual', 'Senha atual', 'password', 'autocomplete="current-password" required') +
+    fld('senha-nova', 'Nova senha', 'password', 'autocomplete="new-password" minlength="8" required') +
+    fld('senha-confirmar', 'Confirme a nova senha', 'password', 'autocomplete="new-password" minlength="8" required') +
+    '<label class="senha-visible"><input type="checkbox" id="senha-mostrar"> Mostrar senhas</label><p id="senha-regras" class="mut">Use pelo menos 8 caracteres e até 72 bytes. Prefira uma frase longa e exclusiva. As outras sessões serão encerradas após a alteração.</p><p id="senha-msg" class="msg" role="alert"></p><div class="row"><button class="btn" type="submit" id="senha-salvar">Salvar nova senha</button>' +
+    (ME && !ME.trocar_senha ? '<button class="ghost" type="button" id="senha-voltar">Voltar ao painel</button>' : '') + '<button class="ghost" type="button" id="senha-sair">Sair</button></div></form></section>');
+  app.classList.add('wide');
+  var busy = false;
+  ['senha-atual', 'senha-nova', 'senha-confirmar'].forEach(function (id) {
+    $(id).setAttribute('aria-describedby', 'senha-regras');
+    $(id).oninput = function () { this.removeAttribute('aria-invalid'); $('senha-msg').textContent = ''; };
+  });
+  $('senha-mostrar').onchange = function () {
+    var visible = this.checked;
+    ['senha-atual', 'senha-nova', 'senha-confirmar'].forEach(function (id) { $(id).type = visible ? 'text' : 'password'; });
+  };
+  if ($('senha-voltar')) $('senha-voltar').onclick = boot;
+  $('senha-sair').onclick = function () { api('POST', '/api/logout').then(function () { ME = null; loginView(); }).catch(function (e) { $('senha-msg').textContent = e.message; }); };
+  $('senha-form').onsubmit = function (e) {
+    e.preventDefault(); if (busy) return; var msg = $('senha-msg'), save = $('senha-salvar'), nova = $('senha-nova').value;
+    function invalid(id, text) { $(id).setAttribute('aria-invalid', 'true'); msg.textContent = text; $(id).focus(); }
+    if (nova.length < 8 || new TextEncoder().encode(nova).length > 72) { invalid('senha-nova', 'Use pelo menos 8 caracteres e no máximo 72 bytes na nova senha.'); return; }
+    if (nova === $('senha-atual').value) { invalid('senha-nova', 'Escolha uma senha diferente da atual.'); return; }
+    if (nova !== $('senha-confirmar').value) { invalid('senha-confirmar', 'A confirmação não corresponde à nova senha.'); return; }
+    busy = true; $('senha-form').setAttribute('aria-busy', 'true'); save.disabled = true; save.textContent = 'Salvando…'; msg.textContent = 'Alterando a senha…';
+    api('POST', '/api/senha', { senha_atual: $('senha-atual').value, nova_senha: nova }).then(function () { return api('GET', '/api/me'); }).then(entrou)
+      .catch(function (x) { if (!falhou(x) && $('senha-msg')) { $('senha-msg').textContent = x.message; $('senha-salvar').disabled = false; $('senha-salvar').textContent = 'Salvar nova senha'; $('senha-form').removeAttribute('aria-busy'); busy = false; } });
+  };
+}
+
+function viewAuditoria(antes) {
+  var target = $('tab');
+  target.innerHTML = '<h2>Auditoria de segurança</h2><p class="mut">Histórico de acessos e alterações. O registro não contém senhas nem números de telefone. A disponibilização de telefones ao navegador também é registrada.</p><div id="audit-list">Carregando…</div>';
+  api('GET', '/api/admin/auditoria' + (antes ? '?antes=' + encodeURIComponent(antes) : '')).then(function (rows) {
+    if (TAB !== 'audit' || target !== $('tab')) return;
+    $('audit-list').innerHTML = '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Data e hora</th><th>Responsável</th><th>Ação</th><th>Recurso</th><th>Identificador</th></tr></thead><tbody>' + rows.map(function (x) {
+      return '<tr><td>' + esc(new Date(x.criado_em).toLocaleString('pt-BR')) + '</td><td>' + esc(x.usuario || (x.usuario_id ? 'Conta ' + x.usuario_id : 'Sistema / acesso não identificado')) + '</td><td>' + esc(x.acao) + '</td><td>' + esc(x.recurso) + '</td><td>' + esc(x.recurso_id || '—') + '</td></tr>';
+    }).join('') + '</tbody></table></div><div class="row"><button class="ghost" id="audit-recentes">Mais recentes</button>' + (rows.length === 100 ? '<button class="ghost" id="audit-mais">Registros anteriores</button>' : '') + '</div>';
+    $('audit-recentes').onclick = function () { viewAuditoria(); };
+    if ($('audit-mais')) $('audit-mais').onclick = function () { viewAuditoria(rows[rows.length - 1].id); };
+  }).catch(function (e) { if (!falhou(e) && TAB === 'audit' && $('audit-list')) $('audit-list').textContent = e.message; });
 }
 
 // Sessão sem uso por 15 minutos: sai sozinho

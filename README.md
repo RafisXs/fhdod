@@ -1,8 +1,20 @@
 # Avaliação do Atendimento - FHDOD
 
+Revisão de lançamento: [RELATORIO_REVISAO.md](RELATORIO_REVISAO.md), com evidências, correções e pendências de homologação.
+
+Na aba **Setores**, use **Imprimir QR Code geral** para abrir a escolha de setor. A impressão em lote inclui o geral e os setores ativos, com um cartaz A4 por página. O endereço deve ser a origem pública (por exemplo, `https://avaliacao.seuhospital.com.br`), sem caminhos ou parâmetros; na ausência de configuração, usa-se o domínio atual. O QR continua disponível em SVG e PNG.
+
+Na tela **Alterar minha senha**, é possível mostrar/ocultar os campos, conferir as regras e corrigir erros antes de enviar. A troca mantém a validação no servidor e a revogação das sessões anteriores.
+
+Para verificar sintaxe: `npm run lint`. Para API, segurança e interface em banco temporário isolado: `npm run test:painel` (requer MySQL e Chrome no caminho definido em `tests/painel.test.cjs`). No PowerShell com bloqueio de scripts, use `npm.cmd`. O navegador dessa suíte usa `--no-sandbox` apenas para testes locais; não use esse perfil para navegação comum. O comando `npm run test:seguranca` isolado exige servidor e credenciais de teste configurados; nunca aponte os testes ao banco operacional.
+
 Sistema web para coletar a avaliação do atendimento por setor (pesquisa de satisfação com NPS) e acompanhar os resultados em um painel com perfis de acesso, TV Wall e exportação em Excel.
 
 > Sistema de avaliação do atendimento da Fundação Hospitalar Dr. Oswaldo Diesel (FHDOD), Três Coroas - RS.
+
+Guia operacional: [implantação, HTTPS, serviço e backup](docs/implantacao.md). Plano de evolução e validações institucionais: [pendências](docs/pendencias.md). A entrega técnica desta rodada não substitui homologação da TI, da gestão e do encarregado de privacidade.
+
+Evidências da rodada: [relatório de testes de segurança](docs/testes-seguranca.md).
 
 
 ## Sumário
@@ -32,11 +44,13 @@ Sistema web para coletar a avaliação do atendimento por setor (pesquisa de sat
 **Pesquisa (pacientes e familiares, sem login) - `/`**
 
 - Escolha do setor e perguntas **sem limite fixo de 5** (até 30 por setor). O padrão de cada setor é: duas de nota (5 níveis), a **recomendação de 1 a 10 com carinhas na 3ª posição**, uma de pontos positivos e uma de pontos a melhorar. Cada setor tem exatamente uma pergunta de recomendação, que não pode ser excluída.
-- **Gravação em tempo real:** cada resposta é gravada no banco assim que o paciente responde (como rascunho). Os painéis e a TV só contam as avaliações enviadas. Se a internet falhar no meio do caminho, o envio final manda as respostas de novo.
+- **Gravação em tempo real:** após o aceite inicial, cada resposta é salva como rascunho, permitindo acompanhamento no painel ao vivo. O envio final reenvia as respostas como garantia e conclui a avaliação. Somente avaliações concluídas entram nos indicadores.
 - Passo final: dia do atendimento, turno (Dia ou Noite), paciente ou familiar e tipo de atendimento (SUS, Plano de Saúde ou Particular).
 - Quando a nota fica abaixo da média, aparece um campo **opcional** de telefone, com autorização expressa de contato, para a gestão do setor ligar e entender o que houve.
 - Link direto por setor, para gerar QR Code: `/?setor=rx`.
 - Layout para celular, navegação por teclado e foco visível.
+- **Privacidade (LGPD):** uma caixa compacta antes da primeira pergunta resume a finalidade e permite ler o [Aviso de Privacidade](public/privacidade.html). O aceite começa desmarcado e libera o início da pesquisa. O telefone continua opcional, com autorização separada. O aviso permanece acessível no rodapé; a última etapa apenas relembra o aceite, sem exigir nova marcação.
+- **Evidência no servidor:** a primeira resposta salva registra a versão do aviso e a data/hora UTC do aceite (`privacidade_versao`, `privacidade_aceita_em`). A API exige aceite booleano explícito e a versão atual para iniciar, enviar ou concluir avaliações. Registros anteriores permanecem com campos nulos, sem atribuir aceite retroativo. A versão atual é definida em `server/lib/privacidade.js` e informada por `/api/perguntas`.
 
 **Área restrita (equipe) - `/admin`**
 
@@ -48,6 +62,9 @@ Sistema web para coletar a avaliação do atendimento por setor (pesquisa de sat
 - **QR Code pelo painel:** na aba Setores, cada setor tem o botão **QR Code**, que abre um cartaz A4 pronto para imprimir (ou salvar em PDF), com o logo, o nome do setor e o QR Code, e permite baixar o QR em PNG ou SVG. Há também o botão para imprimir os cartazes de todos os setores ativos de uma vez. O QR é gerado no próprio navegador (biblioteca local, sem site externo). Informe antes o **endereço do site publicado** (campo na aba Setores, guardado neste navegador): um QR com `localhost` só funciona no seu computador.
 - **Resultado por pergunta:** em Resultados, nota média, NPS e opções mais escolhidas de cada pergunta, inclusive as novas.
 - Equipe: criação e desativação de contas, conforme o perfil.
+- **Alterar minha senha:** disponível para todos os perfis, com confirmação da senha atual e definição de senha diferente. Novas contas e senhas redefinidas exigem troca antes de acessar os demais recursos. Após a troca, as sessões anteriores são invalidadas e o navegador recebe uma sessão atualizada.
+- **Proteção por conta:** cinco falhas consecutivas de senha bloqueiam novas autenticações por 15 minutos. O contador é persistido no MySQL, além do limite de tentativas por IP. A senha correta não libera uma conta ainda bloqueada. O bloqueio não encerra automaticamente sessões já autenticadas.
+- **Auditoria (gerente):** consulta paginada dos eventos de autenticação, senhas, perguntas, contas, setores e contatos. Registra quem recebeu telefones na consulta autorizada e quem os apagou, sem gravar os números, as senhas ou as observações no log. O registro representa a disponibilização ao navegador, e não prova de leitura humana ou envio de mensagem.
 
 **TV Wall - `/tv.html`**
 
@@ -66,6 +83,8 @@ Sistema web para coletar a avaliação do atendimento por setor (pesquisa de sat
 | Alcance dos dados | Todos os setores | Somente o seu setor | O seu setor (ou todos, se criado sem setor) |
 | Ver resultados e exportar Excel | Sim | Sim | Sim |
 | Ver telefones e registrar contato | Sim | Sim (do seu setor) | **Nunca** |
+| Alterar a própria senha | Sim | Sim | Sim |
+| Consultar auditoria | Sim | Não | Não |
 | Adicionar, excluir, reordenar e editar perguntas | Todos os setores | Somente o seu setor | Não |
 | Criar, renomear, ordenar e desativar setores | **Sim (só ele)** | Não | Não |
 | Equipe | Cria e gerencia todas as contas, **sendo o único que cria administradores** (1 por setor) e outros gerentes | Cria e gerencia apenas visualizadores do seu setor; não cria admins nem muda perfis | Não |
@@ -76,6 +95,7 @@ Regras:
 - Cada setor pode ter **no máximo 1 administrador ativo** (garantido pelo banco de dados). Para trocar, desative o atual e crie ou ative outro.
 - Precisa existir pelo menos um gerente ativo, e ninguém desativa ou rebaixa a própria conta.
 - O primeiro gerente é criado pelo terminal (`npm run criar-gerente`). Não existe cadastro público.
+- Senhas devem ter pelo menos 8 caracteres e até 72 bytes UTF-8; letras acentuadas e outros caracteres podem ocupar mais de um byte. A senha provisória deve ser substituída por outra diferente. Contas antigas são preservadas na migração sem presumir que todas utilizam senha provisória; novas contas e redefinições recebem a exigência automaticamente.
 
 ## Tecnologias
 
@@ -108,10 +128,15 @@ Regras:
 │   ├── config.js              # Carregamento centralizado do .env
 │   ├── lib/                   # Autenticação, validação de avaliações, utilidades
 │   │   └── enunciados.js      # Correspondência entre enunciados padrão antigos e revisados
+│   │   # seguranca.js: auditoria, troca de senha e bloqueio persistente
 │   ├── routes/                # public.js (pesquisa, login, TV) e admin.js (área restrita)
 │   └── scripts/criar-gerente.js, migrar.js
 ├── tests/api.test.js          # Testes automatizados da API
 ├── tests/painel.test.cjs       # API, migrações e interface em Chrome real, com banco temporário
+├── tests/seguranca.test.js     # Troca obrigatória, bloqueio, sessões e auditoria (banco temporário)
+├── docs/implantacao.md        # Operação, responsabilidades, HTTPS, backup e restauração
+├── docs/deploy/               # Modelos Nginx, systemd e backup Linux
+├── docs/pendencias.md         # Requisitos ainda pendentes e validações institucionais
 ├── .env.example               # Modelo das variáveis de ambiente
 └── package.json
 ```
@@ -153,7 +178,7 @@ Pré-requisitos: **Node.js 18 ou superior** (com npm) e **MySQL Server 8.0 ou su
 
    O script pode ser executado mais de uma vez sem apagar dados.
 
-5. Crie o primeiro gerente (pede nome, e-mail e senha de 8 a 72 caracteres):
+5. Crie o primeiro gerente (pede nome, e-mail e senha provisória com pelo menos 8 caracteres e até 72 bytes UTF-8):
 
    ```
    npm run criar-gerente
@@ -173,6 +198,7 @@ O módulo `server/config.js` procura primeiro `app/.env` e depois o `.env` da pa
 | `DB_USER` | Usuário do MySQL | `root` |
 | `DB_PASSWORD` | Senha do MySQL | `sua_senha` |
 | `PORT` | Porta do site | `3000` |
+| `HOST` | Interface de escuta; atrás de proxy na mesma máquina, restringir a loopback | `127.0.0.1` em produção; padrão `0.0.0.0` |
 | `NODE_ENV` | `development` ou `production` | `development` |
 | `JWT_SECRET` | Texto longo e aleatório que assina o login (mínimo 24 caracteres) | veja abaixo |
 | `COOKIE_SECURE` | `true` somente quando o site estiver em HTTPS | `false` |
@@ -196,6 +222,8 @@ npm run migrar
 O comando pode ser repetido sem risco. Os textos de perguntas editados e as avaliações já enviadas são mantidos.
 
 A migração também revisa os enunciados que ainda correspondem exatamente aos textos padrão antigos. Perguntas com textos personalizados não são substituídas. O texto histórico em `respostas.pergunta_texto` permanece inalterado, mesmo quando o enunciado atual muda. A migração não cria o banco inicial: uma instalação nova ainda exige a execução de `database/schema.sql`.
+
+A migração de segurança acrescenta `trocar_senha`, `versao_sessao`, `tentativas_falhas` e `bloqueado_ate` em `usuarios`, além da tabela `auditoria`. Não apaga avaliações nem redefine senhas existentes. A inicialização encerra com erro se o banco estiver indisponível, permitindo a supervisão pelo gerenciador de serviço. Fazer backup antes de atualizar; ver [guia de implantação](docs/implantacao.md).
 
 ## Execução
 
@@ -242,6 +270,7 @@ Banco `hospital_experiencia`, definido em `database/schema.sql`.
 | `perguntas` | Quantas o setor precisar (o painel limita em 30), na ordem escolhida. Cada setor tem exatamente 1 do tipo `nps` (garantido pelo banco). |
 | `avaliacoes` | Uma linha por avaliação, anônima. Guarda turno, perfil de quem respondeu, tipo de atendimento, telefone (opcional) e situação do contato. |
 | `respostas` | Uma linha por pergunta respondida, com o texto da pergunta da época. |
+| `auditoria` | Eventos com horário UTC, ID do responsável, ação, recurso, identificador e metadados limitados definidos pelo servidor; sem senhas ou números de telefone. |
 
 Relacionamentos: `perguntas.setor_id`, `avaliacoes.setor_id` e `usuarios.setor_id` apontam para `setores`; `respostas.avaliacao_id` aponta para `avaliacoes`; `respostas.pergunta_id` aponta para `perguntas`.
 
@@ -263,6 +292,7 @@ Todas as respostas são JSON, exceto a exportação em Excel. Pedidos que altera
 | POST | `/api/avaliacoes` | Envia uma avaliação completa de uma vez |
 | POST | `/api/login` | Entrar (limite de 10 tentativas a cada 15 minutos) |
 | POST | `/api/logout` | Sair |
+| POST | `/api/senha` | Exige login, senha atual e nova senha; permite concluir a troca obrigatória e revoga sessões anteriores. |
 | GET | `/api/me` | Dados de quem está logado |
 | GET | `/api/admin/andamento` | (login) Avaliações em andamento e abandonadas, no alcance do perfil |
 | GET | `/api/tv` | Indicadores agregados da TV Wall |
@@ -280,11 +310,16 @@ Todas as respostas são JSON, exceto a exportação em Excel. Pedidos que altera
 | GET | `/api/admin/resultado-perguntas` | Todos, dentro do alcance (nota, NPS e opções por pergunta) |
 | GET, POST | `/api/admin/usuarios` | Gerente, administrador |
 | PATCH | `/api/admin/usuarios/:id` | Gerente, administrador |
+| GET | `/api/admin/auditoria?antes=<id>` | Somente gerente; até 100 eventos por página, em ordem decrescente de ID. |
+
+`POST /api/senha` recebe `{ "senha_atual": "...", "nova_senha": "..." }`. `GET /api/me` e o login incluem `trocar_senha`. Enquanto essa marca estiver ativa, o servidor permite consulta ao perfil, troca de senha e logout; os recursos administrativos retornam HTTP 403 com código `TROCAR_SENHA`. Não basta ocultar as abas na interface: a restrição é aplicada no servidor.
 
 ## Segurança e LGPD
 
 - Senhas com hash `bcrypt`; nunca guardadas em texto.
 - Login por cookie `httpOnly` e `SameSite=Strict`, válido por 8 horas. O perfil é conferido no banco a cada requisição, então desativar uma conta vale na hora.
+- Cookies incluem versão de sessão validada no banco. Troca/redefinição de senha e alterações de conta invalidam versões anteriores. Senhas e sua confirmação não são gravadas no log de auditoria.
+- Atualizações auditadas são gravadas na mesma transação que seu evento. Uma falha na auditoria reverte a atualização correspondente; a leitura de telefones também não é enviada se seu evento não puder ser gravado. Administradores do banco ainda podem modificar a tabela: não se trata de log criptograficamente imutável.
 - Consultas SQL parametrizadas, validação de todos os dados recebidos e política de segurança de conteúdo (`helmet`).
 - Limite de tentativas de login e de envios de avaliação por endereço.
 - Exportação em Excel protegida contra injeção de fórmulas.
@@ -292,6 +327,10 @@ Todas as respostas são JSON, exceto a exportação em Excel. Pedidos que altera
 - Não há campo de texto livre do paciente, para evitar dados de saúde no sistema.
 
 Para uso oficial, a finalidade, o prazo de guarda do telefone e a base legal devem ser definidos junto ao responsável pela LGPD do hospital.
+
+Há aviso e mecanismo de aceite na pesquisa, mas o texto ainda depende de homologação institucional. Não há 2FA ou expurgo automático de telefones. Esses itens estão explicitamente registrados em [pendências](docs/pendencias.md), junto com a política de retenção, atendimento à exclusão e aprovação da escala e dos textos pela instituição. A caixa de aceite, isoladamente, não comprova conformidade integral com a LGPD.
+
+Ao revisar o aviso, preservar a versão anterior no histórico do repositório e atribuir uma nova versão tanto ao texto publicado quanto a `VERSAO_PRIVACIDADE`. O prazo efetivo de retenção, o canal definitivo do encarregado e os procedimentos de atendimento aos direitos devem ser homologados pelo hospital; o aviso atual não inventa prazo de exclusão automática ou nome de encarregado.
 
 ## Testes
 
@@ -311,7 +350,13 @@ Os 23 testes cobrem: conexão, perguntas, proteção CSRF, login, registro de av
 
 Para validar o painel em navegador real no Windows, com o Google Chrome instalado, execute `npm.cmd run test:painel`. Esse comando cria um banco temporário exclusivo, executa os testes da API e verifica filtros, gráficos, contatos e edição de perguntas no navegador, sem inserir dados de teste no banco da aplicação. O usuário MySQL configurado precisa ter permissão para criar e remover esse banco temporário. As capturas de tela são gravadas em `../verification/`.
 
+A suíte também executa `tests/seguranca.test.js` no banco temporário. Verifica restrição de primeiro acesso, senha atual, repetição e limite UTF-8, revogação de sessões, bloqueio e expiração, redefinição de senha, permissões da auditoria e ausência de senhas no log. Uma falha simulada no banco verifica o rollback da alteração auditada e o bloqueio da disponibilização de telefones. A simulação cria e remove um trigger apenas no banco temporário, exigindo privilégio `TRIGGER`. O arquivo recusa execução fora de um banco `fhdod_verify_<identificador>`.
+
+Com o aceite de privacidade, a suíte da API passa a conter **24 testes**, incluindo rejeição de aceite ausente, falso, textual ou de versão antiga. O navegador verifica também a recusa sem criação de avaliação, o registro do aceite na primeira resposta e a conclusão da pesquisa sem telefone. O teste de privacidade não representa homologação jurídica do texto.
+
 Verificação registrada em 29/10/2026: **23 testes da API aprovados**, além das verificações de interface em Chrome real, contra **MySQL 8.0.46**. A verificação inclui filtros por pergunta, revisão repetível dos enunciados padrão sem substituir personalizações, gráficos, contatos, menus de seleção e criação, reordenação, exclusão e salvamento de perguntas. Também verifica a largura da página em tela móvel e a ausência de exceções JavaScript durante os fluxos exercitados.
+
+Na rodada de segurança, também passaram **10 verificações na suíte de segurança** (incluindo o cenário principal e seus subtestes), além dos fluxos de auditoria, troca pessoal de senha e primeiro acesso obrigatório em navegador real. Os modelos de implantação não foram instalados em infraestrutura externa e o procedimento de backup/restauração deve ser exercitado no ambiente de destino pela TI.
 
 O teste de navegador utiliza Node.js com `WebSocket` global, Chrome no caminho `C:/Program Files/Google/Chrome/Application/chrome.exe`, porta HTTP `3137` e depuração do navegador na porta `9333`. O ambiente usado foi Node.js 24.14.1 no Windows. O requisito geral Node.js 18+ da aplicação não garante a execução desse teste de navegador sem ajustes. As duas portas precisam estar livres. O teste cria um banco `fhdod_verify_<identificador>` e tenta removê-lo ao finalizar; se o processo for interrompido abruptamente, pode restar um banco temporário. Não aponte a suíte `npm test` manualmente para o banco de uso do hospital: ela grava dados.
 
@@ -336,7 +381,8 @@ O teste de navegador utiliza Node.js com `WebSocket` global, Chrome no caminho `
 - A escala de recomendação vai de 1 a 10 e o NPS oficial usa 0 a 10, então a comparação direta com o formulário em papel pode ter pequenas diferenças.
 - O servidor não faz HTTPS sozinho. Em produção, publique atrás de um proxy com HTTPS e use `COOKIE_SECURE=true` e `TRUST_PROXY`.
 - Não há recuperação de senha por e-mail: o gerente (ou o administrador, para visualizadores) define uma nova senha na aba Equipe.
-- Ainda não há documentação online da API (OpenAPI/Swagger) nem a pasta `docs/` da aplicação.
+- Todos os perfis podem trocar a própria senha. Recuperação sem conhecimento da senha atual continua dependendo da gestão; para o gerente, o procedimento de contingência usa `npm run criar-gerente` após validação da identidade e autorização.
+- A pasta `docs/` contém o guia de implantação, modelos e pendências. Documentação online OpenAPI/Swagger, CI e teste de carga ainda não foram entregues.
 
 ## Créditos
 

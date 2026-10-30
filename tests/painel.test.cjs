@@ -10,8 +10,15 @@ const jwt = require('jsonwebtoken');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const dbName = 'fhdod_verify_' + Date.now();
 let connection, server, chrome;
+async function portaLivre() {
+  const listener = require('node:net').createServer();
+  await new Promise(resolve => listener.listen(0, '127.0.0.1', resolve));
+  const port = listener.address().port;
+  await new Promise(resolve => listener.close(resolve));
+  return port;
+}
 async function ready(url) {
-  for (let i = 0; i < 30; i++) { try { const r = await fetch(url, { signal: AbortSignal.timeout(1000) }); if (r.ok) return r; } catch {} await delay(200); }
+  for (let i = 0; i < 150; i++) { try { const r = await fetch(url, { signal: AbortSignal.timeout(1000) }); if (r.ok) return r; } catch {} await delay(200); }
   throw new Error('Não foi possível acessar ' + url);
 }
 function run(file, args, options) {
@@ -38,11 +45,16 @@ function run(file, args, options) {
   console.log('Revisão dos enunciados: padrões atualizados, personalizações preservadas e migração repetível.');
   const password = require('node:crypto').randomBytes(20).toString('hex');
   const email = 'verificacao@hospital.test';
-  const [created] = await connection.query("INSERT INTO usuarios (nome,email,senha_hash,papel) VALUES (?,?,?,'gerente')", ['Verificação', email, await bcrypt.hash(password, 4)]);
-  const env = { ...process.env, DB_NAME: dbName, PORT: '3137', BASE_URL: 'http://127.0.0.1:3137', TEST_GERENTE_EMAIL: email, TEST_GERENTE_SENHA: password, TV_TOKEN: '' };
+  const [created] = await connection.query("INSERT INTO usuarios (nome,email,senha_hash,papel,trocar_senha) VALUES (?,?,?,'gerente',0)", ['Verificação', email, await bcrypt.hash(password, 4)]);
+  const port = await portaLivre(), debugPort = await portaLivre();
+  const env = { ...process.env, DB_NAME: dbName, HOST: '127.0.0.1', PORT: String(port), BASE_URL: 'http://127.0.0.1:'+port, TEST_GERENTE_EMAIL: email, TEST_GERENTE_SENHA: password, TV_TOKEN: '' };
   server = spawn(process.execPath, ['server/index.js'], { cwd: path.resolve('app'), env, windowsHide: true, stdio: 'ignore' });
   await ready(env.BASE_URL + '/api/saude');
   await run(process.execPath, ['--test', 'tests/api.test.js'], { cwd: path.resolve('app'), env, stdio: 'inherit' });
+  server.kill(); await new Promise(resolve => server.once('exit', resolve));
+  server = spawn(process.execPath, ['server/index.js'], { cwd: path.resolve('app'), env, windowsHide: true, stdio: 'ignore' });
+  await ready(env.BASE_URL + '/api/saude');
+  await run(process.execPath, ['--test', 'tests/seguranca.test.js'], { cwd: path.resolve('app'), env, stdio: 'inherit' });
   const cookie = 'fhdod_token=' + jwt.sign({ id: created.insertId }, process.env.JWT_SECRET, { expiresIn: '10m' });
   const request = async route => { const r = await fetch(env.BASE_URL + route, { headers: { Cookie: cookie } }); assert.equal(r.status, 200); return r.json(); };
   const evaluations = await request('/api/admin/avaliacoes');
@@ -53,8 +65,10 @@ function run(file, args, options) {
     assert.equal(result.itens.filter(x => x.tipo === 'nps').reduce((n,x) => n+x.total,0), selected.length, query);
   }
   console.log('Filtros por pergunta: OK');
-  chrome = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=9333', '--user-data-dir=' + path.resolve('.chrome-verify'), 'about:blank'], { windowsHide: true, stdio: 'ignore' });
-  const version = await (await ready('http://127.0.0.1:9333/json/version')).json();
+  console.log('Iniciando verificação no Chrome isolado.');
+  chrome = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', ['--headless=new', '--disable-gpu', '--in-process-gpu', '--no-sandbox', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port='+debugPort, '--user-data-dir=' + path.resolve('verification/chrome-' + dbName), 'about:blank'], { windowsHide: true, stdio: 'ignore' });
+  chrome.on('error', e => { console.error('Chrome:', e.code); });
+  const version = await (await ready('http://127.0.0.1:'+debugPort+'/json/version')).json();
   const ws = new WebSocket(version.webSocketDebuggerUrl);
   await new Promise((resolve,reject) => { ws.onopen = resolve; ws.onerror = reject; });
   let seq = 0; const pending = new Map(); const errors = [];
@@ -70,6 +84,10 @@ function run(file, args, options) {
   async function evaluate(expression) { const result = await cdp('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }); if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails)); return result.result.value; }
   async function until(expression) { for (let i=0;i<60;i++) { if (await evaluate(expression)) return; await delay(100); } throw new Error('Espera excedida: '+expression); }
   await until('document.querySelector(".hist") !== null');
+  for (const width of [360,768,1280]) {
+    await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===360});
+    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'Resultados: '+width);
+  }
   await evaluate('F.p="all";updRes()');
   await until('document.querySelector("#rpq details") !== null');
   assert.equal(await evaluate('document.querySelectorAll(".hc").length'), 10);
@@ -108,8 +126,94 @@ function run(file, args, options) {
   screenshot = await cdp('Page.captureScreenshot', { format:'png', captureBeyondViewport:true }); fs.writeFileSync('verification/admin-mobile.png',Buffer.from(screenshot.data,'base64'));
   await evaluate('setTab("per")'); await until('document.querySelector("#qadd") !== null');
   screenshot = await cdp('Page.captureScreenshot', { format:'png', captureBeyondViewport:true }); fs.writeFileSync('verification/perguntas-mobile.png',Buffer.from(screenshot.data,'base64'));
+  await evaluate('setTab("audit")');
+  await until('document.querySelector("#audit-list table") !== null');
+  assert.ok(await evaluate('document.querySelectorAll("#audit-list tbody tr").length > 0'));
+  for (const [tab, selector] of [['per','#qadd'],['set','#slist table'],['eq','#nf'],['ctt','.cards'],['audit','#audit-list table']]) {
+    await evaluate('setTab('+JSON.stringify(tab)+')');
+    await until('document.querySelector('+JSON.stringify(selector)+') !== null');
+    for (const width of [360,768,1280]) {
+      await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===360});
+      assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,tab+': '+width);
+    }
+  }
+  await evaluate('setTab("senha")');
+  await until('document.querySelector("#senha-form") !== null');
+  for (const width of [360,768,1280]) {
+    await cdp('Emulation.setDeviceMetricsOverride', {width,height:900,deviceScaleFactor:1,mobile:width===360});
+    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true, 'Senha: '+width);
+    assert.ok(await evaluate('document.querySelector("#senha-salvar").getBoundingClientRect().height>=44'));
+  }
+  await evaluate('document.querySelector("#senha-mostrar").click()');
+  assert.equal(await evaluate('document.querySelector("#senha-nova").type'),'text');
+  await evaluate('document.querySelector("#senha-mostrar").click()');
+  await evaluate('document.querySelector("#senha-atual").value="Atual-teste";document.querySelector("#senha-nova").value="Nova-teste-123";document.querySelector("#senha-confirmar").value="Diferente-123";document.querySelector("#senha-form").requestSubmit()');
+  assert.equal(await evaluate('document.activeElement.id'),'senha-confirmar');
+  await evaluate('document.querySelector("#senha-atual").value=' + JSON.stringify(password) + ';document.querySelector("#senha-nova").value="Senha-pessoal-browser-987";document.querySelector("#senha-confirmar").value="Senha-pessoal-browser-987";document.querySelector("#senha-form").requestSubmit()');
+  await until('document.querySelector("#t-res") !== null && document.querySelector("#dbody") !== null');
+  const stale = await fetch(env.BASE_URL + '/api/me', { headers: { Cookie: cookie } });
+  assert.equal(stale.status,401);
+  // Confere também a tela obrigatória no primeiro acesso, usando a conta de teste redefinida.
+  const [[provisional]] = await connection.query("SELECT id FROM usuarios WHERE email LIKE 'seguranca.%@teste.invalid' LIMIT 1");
+  const [[sessionVersion]]=await connection.query('SELECT versao_sessao FROM usuarios WHERE id=?',[provisional.id]);
+  const token=jwt.sign({id:provisional.id,sv:sessionVersion.versao_sessao},process.env.JWT_SECRET,{expiresIn:'10m'});
+  await cdp('Network.setCookie',{name:'fhdod_token',value:token,url:env.BASE_URL,httpOnly:true,sameSite:'Strict'});
+  await cdp('Page.navigate',{url:env.BASE_URL+'/admin'});
+  await until('document.querySelector("#senha-form") !== null');
+  assert.equal(await evaluate('document.querySelector("#senha-voltar") === null'),true);
+  await evaluate('document.querySelector("#senha-atual").value="Provisoria-teste-123";document.querySelector("#senha-nova").value="Senha-primeiro-acesso-456";document.querySelector("#senha-confirmar").value="Senha-primeiro-acesso-456";document.querySelector("#senha-form").requestSubmit()');
+  await until('document.querySelector("#t-res") !== null');
+  const [[beforePrivacy]]=await connection.query('SELECT COUNT(*) AS n FROM avaliacoes');
+  await cdp('Page.navigate',{url:env.BASE_URL+'/?setor=rx'});
+  await until('document.querySelector("#privacy-accept") !== null');
+  assert.equal(await evaluate('document.querySelector("#privacy-accept").checked'),false);
+  assert.equal(await evaluate('document.querySelector("#privacy-continue").disabled'),true);
+  const [[noConsent]]=await connection.query('SELECT COUNT(*) AS n FROM avaliacoes');
+  assert.equal(noConsent.n,beforePrivacy.n);
+  screenshot=await cdp('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync('verification/aceite-lgpd-mobile.png',Buffer.from(screenshot.data,'base64'));
+  await evaluate('document.querySelector("#privacy-accept").click();document.querySelector("#privacy-continue").click()');
+  await until('document.querySelector(".opt") !== null');
+  await evaluate('document.querySelector(".opt").click();fila');
+  const [[draft]]=await connection.query('SELECT id,privacidade_versao,privacidade_aceita_em,status FROM avaliacoes ORDER BY id DESC LIMIT 1');
+  assert.equal(draft.status,'rascunho');assert.ok(draft.privacidade_aceita_em);
+  const [[saved]]=await connection.query('SELECT COUNT(*) AS n FROM respostas WHERE avaliacao_id=?',[draft.id]);
+  assert.equal(saved.n,1);
+  await evaluate('Q().forEach(q=>{ans.r[q.id]=q.tipo==="escala"?5:q.tipo==="nps"?10:[]});ans.d=new Date().toISOString().slice(0,10);ans.tu="Dia";ans.re="Paciente";ans.ti="SUS";T0=Date.now()-10000;st=Q().length;render()');
+  assert.equal(await evaluate('document.querySelector("#send").disabled'),false);
+  await evaluate('document.querySelector("#send").click()');
+  await until('document.querySelector("#again") !== null');
+  const [[complete]]=await connection.query('SELECT privacidade_versao,privacidade_aceita_em,status,telefone FROM avaliacoes ORDER BY id DESC LIMIT 1');
+  assert.equal(complete.status,'concluida');assert.ok(complete.privacidade_aceita_em);assert.equal(complete.telefone,null);
   assert.deepEqual(errors,[]);
-  console.log('Navegador: gráficos, contatos, criação, reordenação, exclusão, salvamento e largura móvel OK.');
+  // Seleção múltipla mantém nós, posição, foco e respostas ao voltar.
+  await evaluate('cur=S.find(s=>s.id==="rx");ans={r:{},aceite_privacidade:true,privacidade_versao:PRIVACIDADE_VERSAO};st=Q().findIndex(q=>q.opcoes&&q.opcoes.length>2);render()');
+  for (const width of [360,768,1280]) {
+    await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===360});
+    await evaluate('ans.r[Q()[st].id]=[];render();window.firstChip=document.querySelector(".chip");window.positions=Array.from(document.querySelectorAll(".chip")).map(e=>[e.offsetTop,e.offsetLeft]);firstChip.focus();firstChip.click();document.querySelectorAll(".chip")[1].click()');
+    assert.equal(await evaluate('document.querySelectorAll(".chip[aria-pressed=true]").length'),2);
+    assert.equal(await evaluate('firstChip===document.querySelector(".chip")'),true);
+    assert.deepEqual(await evaluate('Array.from(document.querySelectorAll(".chip")).map(e=>[e.offsetTop,e.offsetLeft])'),await evaluate('positions'));
+    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'Pesquisa: '+width);
+    await evaluate('document.querySelector("#go").click();document.querySelector("#back").click()');
+    assert.equal(await evaluate('document.querySelectorAll(".chip[aria-pressed=true]").length'),2);
+  }
+  await evaluate('fila');
+  for (const query of ['geral=1','setor=rx&nome=Raio-X','todos=1']) {
+    await cdp('Page.navigate',{url:env.BASE_URL+'/qr.html?'+query+'&base='+encodeURIComponent('https://hospital.example')});
+    await until('document.querySelector(".cartaz svg") !== null');
+    assert.equal(await evaluate('document.querySelector(".cartaz")._url'),query.startsWith('setor')?'https://hospital.example/?setor=rx':'https://hospital.example/');
+    assert.ok(await evaluate('document.querySelector(".cartaz")._qr.m>=4'));
+    console.log('QR validado: URL e margem; decodificador nativo disponível:',await evaluate('typeof BarcodeDetector!=="undefined"'));
+    for (const width of [360,768,1280]) {
+      await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===360});
+      assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'QR: '+width);
+    }
+    const pdf = await cdp('Page.printToPDF',{preferCSSPageSize:true,printBackground:true});
+    const pages = (Buffer.from(pdf.data,'base64').toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length;
+    assert.equal(pages,await evaluate('document.querySelectorAll(".cartaz").length'),'Uma página A4 por cartaz');
+  }
+  assert.deepEqual(errors,[]);
+  console.log('Navegador: painel, senhas e pesquisa com aceite LGPD, recusa sem coleta e envio sem telefone OK.');
   await send('Browser.close'); ws.close();
 })().catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{
   if (server) server.kill(); if (chrome) chrome.kill();

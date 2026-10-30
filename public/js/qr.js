@@ -4,15 +4,21 @@
   var params = new URLSearchParams(location.search);
   var SETOR = (params.get("setor") || "").replace(/[^a-z]/g, "").slice(0, 10);
   var NOME = (params.get("nome") || "").slice(0, 80);
-  var TODOS = params.get("todos") === "1" || !SETOR;
+  var GERAL = params.get("geral") === "1";
+  var TODOS = params.get("todos") === "1" || (!SETOR && !GERAL);
   var LISTA = []; // setores mostrados: [{id, nome}]
 
-  function baseValida(s) { s = String(s || "").trim().replace(/\/+$/, ""); return /^https?:\/\/[^\s<>"']+$/i.test(s) ? s : ""; }
+  function baseValida(s) {
+    try {
+      var u = new URL(String(s || '').trim());
+      return /^https?:$/.test(u.protocol) && !u.username && !u.password && !u.search && !u.hash && u.pathname === '/' && u.origin.length <= 300 ? u.origin : '';
+    } catch (e) { return ''; }
+  }
   function guardada() { try { return localStorage.getItem("fhdod_base") || ""; } catch (e) { return ""; } }
   function guardar(b) { try { localStorage.setItem("fhdod_base", b); } catch (e) {} }
   var BASE = baseValida(params.get("base")) || baseValida(guardada()) || location.origin;
 
-  function link(id) { return BASE + "/?setor=" + id; }
+  function link(id) { return BASE + (id ? "/?setor=" + encodeURIComponent(id) : "/"); }
 
   // Desenha o QR Code como SVG (módulos escuros em um único caminho, com margem de 4 módulos)
   function qrDe(texto) {
@@ -31,7 +37,7 @@
     var st = document.createElement("div"); st.className = "setor"; st.textContent = s.nome; sec.appendChild(st);
     var box = document.createElement("div"); box.className = "qr"; box.innerHTML = qr.svg; sec.appendChild(box);
     var c = document.createElement("p"); c.className = "como"; c.textContent = "Aponte a câmera do celular para o QR Code e conte como foi. Leva cerca de 1 minuto."; sec.appendChild(c);
-    var a = document.createElement("p"); a.className = "anon"; a.textContent = "Sua avaliação é anônima e ajuda o hospital a melhorar."; sec.appendChild(a);
+    var a = document.createElement("p"); a.className = "anon"; a.textContent = "Sua participação ajuda o hospital a melhorar. O telefone é opcional."; sec.appendChild(a);
     var l = document.createElement("p"); l.className = "url"; l.textContent = u; sec.appendChild(l);
     var p = document.createElement("p"); p.className = "proto"; p.textContent = "Fundação Hospitalar Dr. Oswaldo Diesel · Avaliação do Atendimento"; sec.appendChild(p);
     sec._qr = qr; sec._url = u;
@@ -75,10 +81,10 @@
   };
 
   // Monta a lista: um setor (veio do painel) ou todos os ativos
-  if (!TODOS) { LISTA = [{ id: SETOR, nome: NOME || SETOR }]; desenhar(); }
+  if (!TODOS) { LISTA = [{ id: GERAL ? "" : SETOR, nome: GERAL ? "Escolha seu setor" : (NOME || SETOR) }]; desenhar(); }
   else {
     fetch("/api/perguntas", { headers: { "X-Requested-With": "fhdod" } }).then(function (r) { return r.json(); })
-      .then(function (j) { LISTA = j.setores.map(function (s) { return { id: s.id, nome: s.nome }; }); desenhar(); })
+      .then(function (j) { if (!Array.isArray(j.setores)) throw new Error("Setores indisponíveis"); LISTA = [{ id: "", nome: "Escolha seu setor" }].concat(j.setores.map(function (s) { return { id: s.id, nome: s.nome }; })); desenhar(); })
       .catch(function () { $("cartazes").innerHTML = '<p class="load">Não foi possível carregar os setores. Volte ao painel e tente de novo.</p>'; });
   }
 })();

@@ -4,6 +4,7 @@ var BELOW = 3, NPSMAX = 6;
 var PQ = {}, cur = null, st = 0, ans = { r: {} }, T0 = Date.now();
 // Gravação em tempo real: cada resposta vai para o banco assim que é dada (fila para manter a ordem)
 var tok = null, tokP = null, fila = Promise.resolve(), falhas = {};
+var PRIVACIDADE_VERSAO = '';
 
 function Q() { return PQ[cur.id] || []; }
 
@@ -17,6 +18,7 @@ function boot() {
   api("GET", "/api/perguntas").then(function (j) {
     S = j.setores; PQ = {};
     BELOW = j.limites.abaixoMedia; NPSMAX = j.limites.npsMaxDetrator;
+    PRIVACIDADE_VERSAO = j.privacidade.versao;
     j.perguntas.forEach(function (q) { (PQ[q.setor_id] = PQ[q.setor_id] || []).push(q); });
     var q0 = "";
     try { q0 = new URLSearchParams(location.search).get("setor") || (location.hash || "").replace("#", ""); } catch (e) {}
@@ -25,34 +27,45 @@ function boot() {
   }).catch(loadFail);
 }
 
-function start(s) { cur = s; st = 0; ans = { r: {} }; T0 = Date.now(); tok = null; tokP = null; falhas = {}; render(); }
+function start(s) {
+  cur = s; st = 0; ans = { r: {} }; T0 = Date.now(); tok = null; tokP = null; falhas = {};
+  fila = Promise.resolve(); render();
+}
 
 // Cria o rascunho no banco na primeira resposta (quem só abre a página não deixa nada gravado)
 function token() {
+  if (ans.aceite_privacidade !== true) return Promise.reject(new Error('Leia e aceite o Aviso de Privacidade antes de responder.'));
   if (tok) return Promise.resolve(tok);
   if (!tokP) {
-    var setor = cur.id;
-    tokP = api("POST", "/api/avaliacoes/iniciar", { setor: setor }).then(function (j) { if (cur && cur.id === setor) tok = j.token; return j.token; })
+    var setor = cur.id, contexto = ans;
+    tokP = api("POST", "/api/avaliacoes/iniciar", { setor: setor, aceite_privacidade: true, privacidade_versao: ans.privacidade_versao }).then(function (j) { if (ans === contexto && cur && cur.id === setor) tok = j.token; return j.token; })
       .catch(function (e) { tokP = null; throw e; });
   }
   return tokP;
 }
-// Grava uma resposta agora. Se a internet falhar, o envio final manda tudo de novo (nada se perde).
-function salvar(q) {
-  var v = ans.r[q.id], corpo = q.tipo === "escala" || q.tipo === "nps" ? { p: q.id, n: v } : { p: q.id, v: v || [] }, setor = cur.id;
-  fila = fila.then(function () {
-    if (!cur || cur.id !== setor) return;
-    return token().then(function (t) { return api("PUT", "/api/avaliacoes/" + t + "/resposta", corpo); })
-      .then(function () { delete falhas[q.id]; })
-      .catch(function () { falhas[q.id] = true; });
-  });
-}
-
 function home() {
   cur = null;
   draw('<div class="hero"><h1>Como foi o seu atendimento?</h1><p class="mut" style="margin:0">Sua opinião ajuda o hospital a melhorar. São poucas perguntas rápidas, leva cerca de 1 minuto. Escolha o setor onde você foi atendido(a):</p></div><div class="grid">' +
     S.filter(function (s) { return PQ[s.id]; }).map(function (s) { return '<button class="sec" data-s="' + s.id + '"><i aria-hidden="true">' + (ICON[s.id] || "🏥") + "</i>" + esc(s.nome) + "</button>"; }).join("") + "</div>");
   app.querySelectorAll(".sec").forEach(function (b) { b.onclick = function () { start(S.filter(function (s) { return s.id === b.dataset.s; })[0]); }; });
+}
+
+function aceiteInicial() {
+  draw('<h1>' + esc(cur.nome) + '</h1><section class="privacy-compact" aria-labelledby="privacy-title"><h2 id="privacy-title">Privacidade (LGPD)</h2><p>Sua participação é voluntária. As respostas serão salvas a cada pergunta para avaliar e melhorar o atendimento. O telefone é opcional e depende de outra autorização.</p><label class="privacy-check"><input type="checkbox" id="privacy-accept"><span>Li o <a href="/privacidade.html" target="_blank" rel="noopener">Aviso de Privacidade</a> e concordo com o uso das informações para essa finalidade.</span></label></section><button class="cta" id="privacy-continue" disabled>Iniciar pesquisa</button><button class="ghost" id="privacy-decline">Não desejo participar</button>');
+  var check = document.getElementById('privacy-accept'), next = document.getElementById('privacy-continue');
+  check.onchange = function () { next.disabled = !check.checked; };
+  next.onclick = function () { if (!check.checked) return; ans.aceite_privacidade = true; ans.privacidade_versao = PRIVACIDADE_VERSAO; render(); };
+  document.getElementById('privacy-decline').onclick = home;
+}
+
+function salvar(q) {
+  if (!ans.aceite_privacidade) return;
+  var v = ans.r[q.id], corpo = q.tipo === 'escala' || q.tipo === 'nps' ? { p: q.id, n: v } : { p: q.id, v: (v || []).slice() }, setor = cur.id, contexto = ans;
+  fila = fila.then(function () {
+    if (!cur || cur.id !== setor || ans !== contexto) return;
+    return token().then(function (t) { return api('PUT', '/api/avaliacoes/' + t + '/resposta', corpo); })
+      .then(function () { delete falhas[q.id]; }).catch(function () { falhas[q.id] = true; });
+  });
 }
 
 function hdr() {
@@ -63,6 +76,7 @@ function hdr() {
 function bind() { document.getElementById("back").onclick = function () { if (st) { st--; render(); } else home(); }; }
 
 function render() {
+  if (!ans.aceite_privacidade) { aceiteInicial(); return; }
   var qs = Q(), n = qs.length;
   if (st >= n) return details();
   var q = qs[st], a = ans.r[q.id];
@@ -86,7 +100,10 @@ function render() {
           arr.push(o);
         }
         salvar(q);
-        render();
+        // Preserva os nós, o foco e a rolagem durante a seleção múltipla.
+        app.querySelectorAll('.chip').forEach(function (chip) {
+          chip.setAttribute('aria-pressed', String(arr.indexOf(q.opcoes[+chip.dataset.i]) >= 0));
+        });
       };
     });
     document.getElementById("go").onclick = function () { st++; render(); };
@@ -110,15 +127,16 @@ function details() {
   var contato = cb ? '<fieldset class="grp"><legend>Quer que o hospital entre em contato?</legend><p class="mut">Sentimos muito que o atendimento não foi bom. Se quiser, deixe seu telefone para a gestão do setor falar com você e entender o que houve. É opcional.</p><div class="fld"><label for="tel">Telefone com DDD</label><input id="tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="(51) 99999-9999" maxlength="15"></div><label class="sh" style="align-items:flex-start"><input type="checkbox" id="cs" style="margin-top:3px"><span>Autorizo o hospital a entrar em contato por este telefone para saber se houve algum problema. O número será visto só pela gestão do setor e usado só para isso.</span></label></fieldset>' : "";
   draw(hdr() + '<h2>Só mais alguns detalhes</h2><div class="grp"><label for="dt" style="display:block;font-weight:600;margin-bottom:8px">Em que dia você foi atendido(a)?</label><input type="date" id="dt" min="' + f2(ty) + '" max="' + iso + '" value="' + (ans.d || "") + '"></div>' +
     grp("tu", "Em qual turno?", ["Dia", "Noite"], "c2") + grp("re", "Você é:", ["Paciente", "Familiar"], "c2") + grp("ti", "Tipo de atendimento:", ["SUS", "Plano de Saúde", "Particular"], "c3") + contato +
-    '<input class="hp" type="text" id="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"><p class="err" id="se" role="alert"></p><button class="cta" id="send">Enviar avaliação</button>');
+    '<section class="privacy-summary"><a href="/privacidade.html" target="_blank" rel="noopener">Aviso de Privacidade (LGPD)</a><p>Aceite confirmado no início da pesquisa. A autorização de telefone continua opcional.</p></section><input class="hp" type="text" id="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"><p class="err" id="se" role="alert"></p><button class="cta" id="send">Enviar avaliação</button>');
   var dt = document.getElementById("dt"), sd = document.getElementById("send"), tl = document.getElementById("tel"), cs = document.getElementById("cs");
-  function chk() { sd.disabled = !(ans.d && ans.tu && ans.re && ans.ti); }
+  function chk() { sd.disabled = !(ans.d && ans.tu && ans.re && ans.ti && ans.aceite_privacidade === true); }
   dt.onchange = function () { ans.d = dt.value; chk(); };
   app.querySelectorAll(".pk").forEach(function (b) { b.onclick = function () { ans[b.dataset.k] = b.dataset.v; app.querySelectorAll('.pk[data-k="' + b.dataset.k + '"]').forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); }); chk(); }; });
   if (tl) { tl.value = ans.tel || ""; tl.oninput = function () { tl.value = fmtTel(tl.value); ans.tel = tl.value; }; }
   chk();
   sd.onclick = function () {
     var se = document.getElementById("se");
+    if (ans.aceite_privacidade !== true) { se.textContent = "Leia e aceite o Aviso de Privacidade para enviar."; return; }
     if (document.getElementById("hp").value || Date.now() - T0 < 6000) { fin(false); return; }
     var dg = tl ? tl.value.replace(/\D/g, "") : "";
     if (dg) {
@@ -128,7 +146,7 @@ function details() {
     sd.disabled = true; sd.textContent = "Enviando..."; se.textContent = "";
     var resp = [];
     Q().forEach(function (q) { var v = ans.r[q.id]; if (q.tipo === "nps" || q.tipo === "escala") resp.push({ p: q.id, n: v }); else resp.push({ p: q.id, v: v || [] }); });
-    var corpo = { respostas: resp, data_atendimento: ans.d, turno: ans.tu, respondente: ans.re, tipo_atendimento: ans.ti, telefone: dg || null, consentimento: !!dg };
+    var corpo = { respostas: resp, data_atendimento: ans.d, turno: ans.tu, respondente: ans.re, tipo_atendimento: ans.ti, telefone: dg || null, consentimento: !!dg, aceite_privacidade: ans.aceite_privacidade === true, privacidade_versao: ans.privacidade_versao };
     // As respostas já foram gravando uma a uma; aqui vão de novo só como garantia, junto com os detalhes finais
     function enviar(tentativa) {
       return fila.then(token).then(function (t) { return api("POST", "/api/avaliacoes/" + t + "/concluir", corpo); }).catch(function (e) {

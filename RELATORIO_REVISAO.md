@@ -1,0 +1,118 @@
+# Revisão de pré-lançamento — 30/10/2026
+
+## Resumo executivo
+
+Branch de trabalho: `revisao/pre-release`, criada a partir de `main`, sem push. O repositório está em `app/`; a pasta superior é apenas o workspace. Havia alterações locais extensas de segurança, privacidade e documentação antes desta revisão. Elas foram preservadas; sua existência não deve ser confundida com alterações produzidas nesta rodada.
+
+Foram corrigidos o deslocamento das opções da pesquisa, a experiência de troca de senha, a ausência de QR geral, a validação de endereço dos QR e a exposição potencial de dados em mensagens de erro. A aplicação inicia com Express/MySQL. A liberação oficial ainda depende das pendências abaixo: não há declaração de prontidão irrestrita para produção.
+
+## Mapeamento inicial e arquitetura
+
+- Backend Node.js/CommonJS, Express 5 e MySQL (`server/index.js`, `server/db.js`). `server/config.js` carrega configuração de ambiente; a inicialização verifica a conexão e executa migrações automaticamente.
+- Frontend estático sem framework: `public/index.html` e `js/patient.js` para pesquisa; `admin.html` e `js/admin.js` para gestão; `qr.html` para cartazes; `tv.html` para agregados. `core.js` reúne acesso à API, escape de HTML e desenho de telas; `select.js` implementa seletores acessíveis.
+- Pesquisa: escolha de setor → aceite de privacidade → respostas → dados do atendimento → conclusão. Rascunhos são gravados em fila; apenas avaliações concluídas entram nos indicadores. Telefone é opcional e condicionado à autorização de contato.
+- Gestão: login em cookie JWT → consulta do usuário e versão da sessão no banco → controle de perfil/setor → resultados, contatos, perguntas, setores, equipe, auditoria ou troca de senha. Contas provisórias devem trocar a senha.
+- `server/routes/public.js` contém pesquisa, autenticação e TV; `routes/admin.js` aplica autenticação e autorização; `lib/avaliacoes.js` valida/persiste respostas; `lib/seguranca.js` implementa senha, bloqueio e auditoria transacional.
+- Dependências diretas: Express, mysql2, bcryptjs, jsonwebtoken, Helmet, express-rate-limit, dotenv, cookie-parser e exceljs. QR é gerado por biblioteca local em SVG/PNG. Não há build de frontend.
+
+### Estado inicial observado, antes das correções
+
+1. Leitura de estrutura, README, configuração, scripts, rotas e testes, sem editar arquivos nessa fase.
+2. `npm run test:painel` não executou por bloqueio do `npm.ps1` no PowerShell; `npm.cmd` contorna isso sem alterar a política da máquina.
+3. A primeira execução de `npm.cmd run test:painel` criou o banco temporário, mas falhou esperando `/api/saude` na porta fixa 3137.
+4. `npm.cmd start` iniciou a aplicação e conectou ao MySQL configurado. A inicialização existente executa migrações automaticamente; não foram enviados testes ao banco operacional. Os testes usaram bancos separados `fhdod_verify_*`.
+5. Chrome inicialmente falhou no processo GPU com acesso negado. A suíte passou após ajuste do processo GPU e uso de `--no-sandbox` apenas no navegador de teste isolado. Isso não é configuração recomendada para navegação comum.
+6. Uma repetição da suíte encontrou a porta fixa ocupada e autenticou contra o processo anterior, causando falhas em cascata. A suíte agora escolhe portas livres e perfis de navegador separados.
+
+## Problemas e evidências
+
+Linhas referem-se ao estado final; quando o trecho original foi removido, o local indica o tratamento substituto. Severidades expressam impacto observado/potencial demonstrável no código, sem atribuir CVEs não consultadas.
+
+| ID | Categoria / severidade | Arquivo e linha | Descrição e impacto | Correção / status |
+| --- | --- | --- | --- | --- |
+| R01 | Bug / Alta | `public/js/patient.js:103`; `public/js/core.js:9` | Cada seleção múltipla chamava `render`, recriava os botões e `draw` rolava ao topo/focava o título. Interrompia toques e navegação por teclado. Não foi encontrada ordenação aleatória nesse fluxo. | **Corrigido:** atualizar apenas `aria-pressed`, mantendo nós, foco, ordem e rolagem. |
+| R02 | UX / Média | `public/css/style.css:38`, `:118` | Peso da fonte e inserção de “✓” alteravam largura e quebra de linha das opções selecionadas. | **Corrigido:** reservar espaço fixo para o indicador e manter o peso da fonte. |
+| R03 | UX / Média | `public/js/admin.js:429`; `public/css/style.css:121` | Troca de senha ocupava toda a largura do painel; não tinha mostrar senha nem validação local de bytes e senha igual. | **Corrigido:** cartão de até 640 px, mostrar senhas, instruções associadas, foco no erro e ações adaptadas ao celular. Validação do servidor preservada. |
+| R04 | Bug / Média | `public/js/admin.js:450` | Apenas desabilitar o botão não protegia contra novo evento de submit programático ou via teclado; estado de espera não era exposto no formulário. | **Corrigido:** guarda de envio, `aria-busy`, texto de progresso e recuperação após erro. |
+| R05 | Funcionalidade / Média | `public/js/qr.js:7`, `:21`, `:84`; `public/js/admin.js:360` | Só havia QR por setor ou lote; faltava acesso geral à escolha de setor. | **Corrigido:** QR geral para `/`, botão próprio e inclusão no lote de cartazes. |
+| R06 | UX / Média | `public/css/qr.css:23` | QR ocupava apenas 62% do conteúdo do cartaz e podia sofrer encolhimento em flex. | **Corrigido:** largura de 85% em tela, sem encolhimento; impressão mantém 118 mm, SVG vetorial, quatro módulos de margem e correção M já existentes. |
+| R07 | Bug / Média | `public/js/qr.js:11`; `public/js/admin.js:341` | Regex aceitava URLs com caminhos, parâmetros e credenciais; concatenar `/?setor=` produzia destinos incorretos. | **Corrigido:** parser URL, apenas origem HTTP(S), rejeição de credenciais/query/hash/caminho; fallback para origem atual. |
+| R08 | Privacidade / Média | `public/js/qr.js:39` | Cartaz prometia anonimato irrestrito embora seja possível fornecer telefone. | **Corrigido:** texto informa participação e telefone opcional. Não se afirma anonimização de registros com telefone. |
+| R09 | AppSec / Alta | `server/index.js:43`; `server/db.js:45` | Mensagens brutas de erro do driver podem conter valores de consultas; URL completa pode conter token da TV. Não foi necessário provocar vazamento de dados reais para identificar o caminho de log. | **Corrigido:** log de erro HTTP contém método e código, sem mensagem bruta ou query string; removida mensagem bruta na falha de conexão. |
+| R10 | AppSec / Média | `server/index.js:29` | API autenticada não definia política explícita contra armazenamento em cache. | **Corrigido:** `Cache-Control: no-store` na API, com teste. |
+| R11 | Bug / Baixa | `server/index.js:41` | Corpo acima do limite de 20 KB virava erro 500 genérico. | **Corrigido:** resposta JSON 413, com teste de payload excessivo. |
+| R12 | Testes / Média | `tests/painel.test.cjs:10`, `:51`; `package.json:15` | Porta/perfil fixos e espera curta fragilizavam a integração. Teste de segurança existia mas não tinha comando próprio; faltava verificação de sintaxe. | **Corrigido:** isolamento de portas/perfil, espera ampliada, `test:seguranca` e `lint` por `node --check`. Este lint verifica sintaxe; não substitui análise estática de estilo/segurança. |
+| R13 | Dados / Alta | `server/lib/avaliacoes.js:209`; `server/routes/admin.js:286` | Painel carrega no máximo 5.000 avaliações e exportação 20.000. Indicadores no navegador e planilha podem divergir do período completo em alto volume. | **Pendente:** agregação no SQL, paginação e exportação paginada/streaming. Exige mudança coordenada de API/UI; não aumentar limites cegamente. Bloqueador para uso com volumes acima desses tetos. |
+| R14 | Desempenho / Média | `server/routes/admin.js:254`; `public/js/admin.js:16` | Resultados por pergunta podem materializar até 200.000 linhas; diversas métricas e filtros são calculados no navegador. | **Pendente:** agregação SQL e teste de carga representativo, com medição de memória/latência. Não houve benchmark de carga nesta rodada. |
+| R15 | LGPD / Alta | `docs/pendencias.md:15`; `server/routes/admin.js:75` | Existe exclusão manual de telefone, mas não há política aprovada nem rotina automática de retenção. Backups também precisam de prazo. | **Pendente de decisão:** prazo, marco inicial, responsáveis e tratamento de backups; depois implementar limpeza auditada. Não apagar dados sem regra aprovada. |
+| R16 | Configuração / Média | `server/lib/auth.js:26`; `.env.example:25` | Cookie Secure depende de flag e exemplo usa desenvolvimento. Configuração incorreta em produção permitiria envio do cookie por HTTP. | **Pendente operacional:** HTTPS, `COOKIE_SECURE=true`, proxy confiável correto e teste no domínio real. Não presumir configuração do ambiente final. |
+| R17 | Produção / Média | `package.json:18`; ausência de `.github/workflows` no inventário | Falta CI; licença está explicitamente como `UNLICENSED`; Node aceita versões antigas via `>=18`. | **Pendente:** escolher Node LTS suportado no destino, pipeline MySQL/Chrome e licença ou termo de uso institucional. Não atribuir licença sem autorização. Docker não é obrigatório; há serviço systemd e Nginx documentados. |
+| R18 | Dependências / Média | `package-lock.json`; execução `npm.cmd audit --omit=dev --json` | Endpoint de advisories do npm inacessível. Isso impede concluir sobre vulnerabilidades transitivas conhecidas. | **Pendente:** repetir auditoria em ambiente com rede e avaliar correções compatíveis. Nenhuma atualização especulativa foi aplicada. |
+| R19 | Testes / Média | `tests/painel.test.cjs`, saída `BarcodeDetector=false` | SVG, URLs, margens e impressão podem ser testados, mas não havia decodificador nativo no Chrome. | **Pendente:** decodificar com ferramenta independente e escanear cartazes impressos com Android/iOS, usando o domínio definitivo. |
+
+### Verificações sem achado confirmado
+
+- Busca por `acadêmico`, `academico`, `protótipo`, `prototipo` e “sistema oficial” em código/documentação atuais não retornou o aviso solicitado. Ele já estava ausente no estado recebido; não se atribui remoção inexistente a esta rodada. Histórico Git não foi reescrito.
+- Consultas examinadas usam parâmetros para valores. SQL dinâmico observado usa cláusulas do próprio servidor. Não foi confirmado SQL injection nem execução de comandos por entrada do paciente.
+- HTML dinâmico de nomes, perguntas e opções utiliza `esc`; não foi demonstrada execução XSS nos fluxos revisados.
+- Login usa bcrypt, cookie HttpOnly/SameSite Strict, JWT com expiração e versão de sessão, bloqueio por conta e limite por IP. CSRF é tratado por cabeçalho obrigatório sem CORS liberado, além do SameSite. Há testes de acesso por setor e visualizador sem telefone.
+- `.env` é ignorado. Consulta `git log --all -- .env` não encontrou commits desse caminho. Isso não equivale a uma varredura completa de segredos em todo o histórico. Não foram copiados valores de credenciais para o relatório.
+- Há guia de implantação, Nginx, serviço e backup/restauração em `docs/implantacao.md` e `docs/deploy`. A existência desses arquivos não comprova restauração bem-sucedida no destino.
+
+## Alterações e testes
+
+Os testes de interface foram ampliados para 360, 768 e 1280 px: resultados, perguntas, setores, equipe, contatos, auditoria, senha, pesquisa e QR. Verificam largura do documento, estabilidade de posição/nós das opções, seleção de duas respostas e persistência ao voltar, tamanho do botão de senha, mostrar/ocultar e foco em confirmação inválida. A exclusividade de “Nada/Nenhum” foi preservada como comportamento existente; não foi removida como se fosse falha.
+
+Comandos e limitações:
+
+- `npm.cmd start`: iniciou e conectou ao banco configurado.
+- `npm.cmd run test:painel`: API, segurança, migração idempotente, filtros e Chrome em banco temporário. Resultado final registrado abaixo após a última execução.
+- `npm.cmd run lint`: passou; verificação sintática dos JS próprios e testes, excluindo biblioteca vendor.
+- `npm.cmd audit --omit=dev --json`: falhou no acesso ao endpoint. Sem conclusão sobre CVEs.
+- Impressão A4 é exercitada por `Page.printToPDF`, conferindo uma página por cartaz. Não houve impressão física ou teste com câmera.
+
+### Resultado final da execução
+
+- Última execução de `npm.cmd run test:painel`: **25/25 testes de API e 10/10 de segurança passaram**, sem skips ou falhas.
+- Chrome: migração/filtros, fluxo de senha normal e obrigatória, expiração da sessão antiga, consentimento, envio sem telefone e seleção múltipla passaram. As abas administrativas e os cartazes passaram na verificação de largura em **360, 768 e 1280 px**.
+- PDF: **uma página A4 por cartaz**, tanto individual e geral quanto no lote, passou. URLs de QR e margem de quatro módulos passaram. Decodificação independente e câmera continuam pendentes.
+- `npm.cmd run lint`: **passou** após as alterações finais de código.
+- Os commits consolidam também os arquivos locais de segurança/privacidade recebidos, necessários ao funcionamento da aplicação revisada. Não houve descarte dessas alterações nem push.
+
+## Checklist de lançamento
+
+- [x] Branch separada, alterações locais preservadas, sem push.
+- [x] Correções focadas de pesquisa, senha e QR; controles de acesso existentes preservados.
+- [x] `.env.example`, `.gitignore` e documentação de implantação disponíveis.
+- [x] Sem aviso acadêmico no conteúdo atual pesquisado.
+- [ ] Resolver limites de completude dos indicadores/exportações ou limitar formalmente a implantação piloto ao volume suportado.
+- [ ] Definir retenção, exclusão, acesso e ciclo de backups com responsável institucional.
+- [ ] Aprovar aviso de privacidade, contatos institucionais, questionário e escala de recomendação atual 1–10.
+- [ ] Configurar HTTPS, Secure, domínio público, usuário SQL de privilégio mínimo e segredo exclusivo no destino.
+- [ ] Executar auditoria de dependências com rede disponível e varredura completa do histórico por segredos.
+- [ ] Validar leitura dos QR em papel e celulares reais no domínio público, sem localhost.
+- [ ] Testar carga, teclado/leitor de tela e restauração de backup no ambiente de homologação.
+- [ ] Definir licença/termo institucional, Node suportado, CI e responsável por operação/monitoramento.
+
+## Decisões do responsável
+
+1. Domínio/HTTPS e ambiente oficial; política de exposição dos agregados da TV.
+2. Prazos de retenção e backups, responsável LGPD e canal para titulares.
+3. Volume esperado e aceite da migração de indicadores para agregações completas no banco.
+4. Licença/uso institucional, infraestrutura, versão Node e responsáveis por homologação.
+5. Confirmação dos setores, textos e escala 1–10 já existentes.
+
+## Evolução proposta
+
+| Horizonte | Melhoria | Prioridade | Esforço estimado |
+| --- | --- | --- | --- |
+| Até 1 dia | Auditoria npm com rede, secret scanning do histórico e revisão de configuração no destino | P0 | 0,5–1 dia |
+| Até 1 dia | Escanear cartazes reais e validar teclado/leitor de tela com usuários da equipe | P0 | 0,5–1 dia |
+| Até 1 dia | Pipeline CI com MySQL isolado e artefatos de testes | P1 | 1 dia |
+| Médio prazo | Agregação SQL, paginação e exportação completa em streaming | P0 | 3–5 dias |
+| Médio prazo | Retenção automática auditada após aprovação institucional | P0 | 2–3 dias |
+| Médio prazo | Teste de carga, observabilidade sem dados pessoais e exercício de restauração | P1 | 2–4 dias |
+| Novas funcionalidades | MFA para gerentes com recuperação e revogação | P1 | 3–5 dias |
+| Novas funcionalidades | Relatório mensal por setor e alertas agregados com regras aprovadas | P2 | 3–5 dias |
+
+Estimativas dependem de homologação e infraestrutura. Nenhum serviço externo de mensagens foi ativado.
