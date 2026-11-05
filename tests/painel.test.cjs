@@ -170,6 +170,17 @@ function run(file, args, options) {
   assert.equal(await evaluate('document.querySelector("#privacy-continue").disabled'),true);
   const [[noConsent]]=await connection.query('SELECT COUNT(*) AS n FROM avaliacoes');
   assert.equal(noConsent.n,beforePrivacy.n);
+  assert.equal(await evaluate('document.querySelector("#privacy-decline") === null'),true);
+  // Acelera somente o relógio do aceite; confere que a aplicação solicita 30 segundos.
+  await evaluate('window.originalTimeout=window.setTimeout;window.setTimeout=function(fn,ms){if(ms===30000){window.privacyDelay=ms;return originalTimeout(fn,30)}return originalTimeout(fn,ms)};aceiteInicial()');
+  await until('document.querySelector(".sec") !== null');
+  assert.equal(await evaluate('window.privacyDelay'),30000);
+  await evaluate('window.setTimeout=window.originalTimeout;start(S.find(s=>s.id==="rx"))');
+  await evaluate('document.querySelector("#privacy-accept").click()');
+  assert.equal(await evaluate('document.querySelector("#privacy-continue").disabled'),false);
+  assert.equal(await evaluate('document.querySelector("#privacy-accept").checked'),true);
+  await evaluate('document.querySelector("#privacy-accept").click()');
+  assert.equal(await evaluate('document.querySelector("#privacy-continue").disabled'),true);
   screenshot=await cdp('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync('verification/aceite-lgpd-mobile.png',Buffer.from(screenshot.data,'base64'));
   await evaluate('document.querySelector("#privacy-accept").click();document.querySelector("#privacy-continue").click()');
   await until('document.querySelector(".opt") !== null');
@@ -207,10 +218,18 @@ function run(file, args, options) {
     for (const width of [360,768,1280]) {
       await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===360});
       assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'QR: '+width);
+      assert.ok(await evaluate('document.querySelector(".qr").getBoundingClientRect().width >= Math.min(220, innerWidth * 0.55)'), 'QR legível: '+width);
+      assert.ok(await evaluate('document.querySelector(".cartaz h2").getBoundingClientRect().width >= document.querySelector(".cartaz").getBoundingClientRect().width * 0.7'), 'Texto usa a largura do cartaz: '+width);
     }
     const pdf = await cdp('Page.printToPDF',{preferCSSPageSize:true,printBackground:true});
     const pages = (Buffer.from(pdf.data,'base64').toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length;
     assert.equal(pages,await evaluate('document.querySelectorAll(".cartaz").length'),'Uma página A4 por cartaz');
+  }
+  await cdp('Page.navigate',{url:env.BASE_URL+'/tv.html'});
+  await until('document.querySelector(".k") !== null');
+  for (const width of [360,768,1280]) {
+    await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===360});
+    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'TV: '+width);
   }
   assert.deepEqual(errors,[]);
   console.log('Navegador: painel, senhas e pesquisa com aceite LGPD, recusa sem coleta e envio sem telefone OK.');

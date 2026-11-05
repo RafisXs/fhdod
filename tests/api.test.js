@@ -59,7 +59,11 @@ async function entrar(email, senha) {
   senhasAtuais.set(email, nova);
   return alterada.headers.get('set-cookie').split(';')[0];
 }
-const hoje = () => new Date().toISOString().slice(0, 10);
+const hoje = () => {
+  const partes = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const valor = tipo => partes.find(p => p.type === tipo).value;
+  return `${valor('year')}-${valor('month')}-${valor('day')}`;
+};
 
 // Monta uma avaliação válida para o setor, a partir das perguntas públicas
 async function montar(setor, { nota, nps, telefone, consentimento, opcao } = {}) {
@@ -442,6 +446,47 @@ test('15. TV Wall mostra só números agregados', async () => {
   assert.ok(r.json.total >= 2);
   assert.ok(Array.isArray(r.json.setores));
   assert.ok(!JSON.stringify(r.json).includes('telefone'));
+});
+
+test('Entradas malformadas são recusadas sem erro interno nem alteração de conta', async () => {
+  assert.equal((await req('PUT', '/api/admin/perguntas/rx', { perguntas: [null] }, gerente)).status, 400);
+  assert.equal((await req('PUT', '/api/admin/perguntas/rx', { perguntas: [[]] }, gerente)).status, 400);
+  assert.equal((await req('PATCH', `/api/admin/usuarios/${ids.visRx}`, { ativo: 'false' }, gerente)).status, 400);
+});
+
+test('Data do atendimento respeita o dia do hospital e o limite de um ano', async () => {
+  const corpo = await montar('rx', { nota: 5, nps: 10 });
+  const amanha = new Date(hoje() + 'T00:00:00Z'); amanha.setUTCDate(amanha.getUTCDate() + 1);
+  const antiga = new Date(hoje() + 'T00:00:00Z'); antiga.setUTCFullYear(antiga.getUTCFullYear() - 1); antiga.setUTCDate(antiga.getUTCDate() - 1);
+  for (const data_atendimento of [amanha.toISOString().slice(0, 10), antiga.toISOString().slice(0, 10), '2026-02-30']) {
+    assert.equal((await req('POST', '/api/avaliacoes', { ...corpo, data_atendimento })).status, 400);
+  }
+});
+
+test('Rascunho: conclusões simultâneas gravam uma única avaliação e bloqueiam respostas posteriores', async () => {
+  const perguntas = (await req('GET', '/api/perguntas')).json.perguntas.filter(q => q.setor_id === 'rx');
+  const token = (await req('POST', '/api/avaliacoes/iniciar', { setor: 'rx' })).json.token;
+  const respostas = perguntas.map(q => q.tipo === 'escala' ? { p: q.id, n: 5 } : q.tipo === 'nps' ? { p: q.id, n: 10 } : { p: q.id, v: [] });
+  const corpo = { data_atendimento: hoje(), turno: 'Dia', respondente: 'Paciente', tipo_atendimento: 'SUS', respostas };
+  const resultados = await Promise.all([req('POST', `/api/avaliacoes/${token}/concluir`, corpo), req('POST', `/api/avaliacoes/${token}/concluir`, corpo)]);
+  assert.deepEqual(resultados.map(r => r.status).sort(), [201, 400]);
+  assert.equal((await req('PUT', `/api/avaliacoes/${token}/resposta`, respostas[0])).status, 400);
+});
+
+test('Rascunho mantém tipo e resumo corretos quando a pergunta é editada durante a pesquisa', async () => {
+  const atuais = (await req('GET', '/api/admin/perguntas/rx', null, gerente)).json;
+  const q = atuais.find(q => q.tipo === 'escala');
+  const token = (await req('POST', '/api/avaliacoes/iniciar', { setor: 'rx' })).json.token;
+  assert.equal((await req('PUT', `/api/avaliacoes/${token}/resposta`, { p: q.id, n: 1 })).status, 200);
+  try {
+    const perguntas = atuais.map(x => x.id === q.id ? { ...x, tipo: 'positivos', opcoes: ['Acolhimento', 'Agilidade'] } : x);
+    assert.equal((await req('PUT', '/api/admin/perguntas/rx', { perguntas }, gerente)).status, 200);
+    assert.equal((await req('PUT', `/api/avaliacoes/${token}/resposta`, { p: q.id, v: ['Agilidade'] })).status, 200);
+    const andamento = (await req('GET', '/api/admin/andamento', null, gerente)).json.itens;
+    assert.ok(andamento.some(a => a.respostas.some(r => r.texto === q.texto && r.tipo === 'positivos' && r.v.includes('Agilidade'))));
+  } finally {
+    assert.equal((await req('PUT', '/api/admin/perguntas/rx', { perguntas: atuais }, gerente)).status, 200);
+  }
 });
 
 test('16. Regras de segurança da equipe', async () => {

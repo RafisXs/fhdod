@@ -12,9 +12,12 @@ function validarData(s) {
   if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) falha('Data do atendimento inválida.');
   const d = new Date(s + 'T00:00:00Z');
   if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== s) falha('Data do atendimento inválida.');
-  const hoje = Date.now();
-  if (d.getTime() > hoje + 36 * 3600 * 1000) falha('A data do atendimento não pode ser futura.');
-  if (d.getTime() < hoje - 400 * 86400 * 1000) falha('A data do atendimento é muito antiga.');
+  const partes = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const valor = tipo => partes.find(p => p.type === tipo).value;
+  const hoje = new Date(`${valor('year')}-${valor('month')}-${valor('day')}T00:00:00Z`);
+  const limite = new Date(hoje); limite.setUTCFullYear(limite.getUTCFullYear() - 1);
+  if (d > hoje) falha('A data do atendimento não pode ser futura.');
+  if (d < limite) falha('A data do atendimento é muito antiga.');
   return s;
 }
 
@@ -73,7 +76,7 @@ async function iniciarRascunho(setor, privacidade) {
 async function buscarRascunho(db, token) {
   if (typeof token !== 'string' || !/^[0-9a-f]{32}$/.test(token)) falha('Avaliação não encontrada. Recarregue a página.');
   const [rows] = await db.query(
-    `SELECT id, setor_id FROM avaliacoes WHERE token = ? AND status = 'rascunho' AND privacidade_aceita_em IS NOT NULL AND privacidade_versao IS NOT NULL AND criado_em >= DATE_SUB(NOW(), INTERVAL ? HOUR)`,
+    `SELECT id, setor_id FROM avaliacoes WHERE token = ? AND status = 'rascunho' AND privacidade_aceita_em IS NOT NULL AND privacidade_versao IS NOT NULL AND criado_em >= DATE_SUB(NOW(), INTERVAL ? HOUR) FOR UPDATE`,
     [token, VALIDADE_RASCUNHO_HORAS]);
   if (!rows.length) falha('Esta avaliação não está mais aberta. Recarregue a página para começar de novo.');
   return rows[0];
@@ -85,7 +88,7 @@ async function gravarNaLinha(db, av, perg, r) {
   const l = linhaResposta(q, r);
   await db.query(
     `INSERT INTO respostas (avaliacao_id, pergunta_id, pergunta_texto, tipo, valor_num, valores) VALUES (?,?,?,?,?,?)
-     ON DUPLICATE KEY UPDATE pergunta_texto = VALUES(pergunta_texto), valor_num = VALUES(valor_num), valores = VALUES(valores)`,
+     ON DUPLICATE KEY UPDATE pergunta_texto = VALUES(pergunta_texto), tipo = VALUES(tipo), valor_num = VALUES(valor_num), valores = VALUES(valores)`,
     [av.id, ...l]);
 }
 
@@ -98,10 +101,15 @@ async function recalcular(db, avaliacaoId) {
 
 // Grava (ou troca) uma resposta do rascunho
 async function gravarResposta(token, r) {
-  const av = await buscarRascunho(pool, token);
-  const perg = await perguntasAtivas(pool, av.setor_id);
-  await gravarNaLinha(pool, av, perg, r);
-  await recalcular(pool, av.id);
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const av = await buscarRascunho(conn, token);
+    const perg = await perguntasAtivas(conn, av.setor_id);
+    await gravarNaLinha(conn, av, perg, r);
+    await recalcular(conn, av.id);
+    await conn.commit();
+  } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
 }
 
 // Finaliza: confere tudo, grava o contexto (dia, turno...) e o telefone, e libera para os painéis
@@ -110,13 +118,13 @@ async function concluirRascunho(token, p) {
   if (!p || typeof p !== 'object') falha('Dados inválidos.');
   const conn = await pool.getConnection();
   try {
+    await conn.beginTransaction();
     const av = await buscarRascunho(conn, token);
     const perg = await perguntasAtivas(conn, av.setor_id);
     if (!TURNOS.includes(p.turno)) falha('Turno inválido.');
     if (!RESPONDENTES.includes(p.respondente)) falha('Informe se você é paciente ou familiar.');
     if (!TIPOS.includes(p.tipo_atendimento)) falha('Tipo de atendimento inválido.');
     const data = validarData(p.data_atendimento);
-    await conn.beginTransaction();
     // Reenvio de segurança: se alguma gravação em tempo real falhou (internet), as respostas vêm de novo aqui
     if (p.respostas !== undefined) {
       if (!Array.isArray(p.respostas)) falha('Respostas inválidas.');

@@ -5,6 +5,7 @@ var PQ = {}, cur = null, st = 0, ans = { r: {} }, T0 = Date.now();
 // Gravação em tempo real: cada resposta vai para o banco assim que é dada (fila para manter a ordem)
 var tok = null, tokP = null, fila = Promise.resolve(), falhas = {};
 var PRIVACIDADE_VERSAO = '';
+var privacidadeTimer = null;
 
 function Q() { return PQ[cur.id] || []; }
 
@@ -44,6 +45,7 @@ function token() {
   return tokP;
 }
 function home() {
+  clearTimeout(privacidadeTimer);
   cur = null;
   draw('<div class="hero"><h1>Como foi o seu atendimento?</h1><p class="mut" style="margin:0">Sua opinião ajuda o hospital a melhorar. São poucas perguntas rápidas, leva cerca de 1 minuto. Escolha o setor onde você foi atendido(a):</p></div><div class="grid">' +
     S.filter(function (s) { return PQ[s.id]; }).map(function (s) { return '<button class="sec" data-s="' + s.id + '"><i aria-hidden="true">' + (ICON[s.id] || "🏥") + "</i>" + esc(s.nome) + "</button>"; }).join("") + "</div>");
@@ -51,11 +53,17 @@ function home() {
 }
 
 function aceiteInicial() {
-  draw('<h1>' + esc(cur.nome) + '</h1><section class="privacy-compact" aria-labelledby="privacy-title"><h2 id="privacy-title">Privacidade (LGPD)</h2><p>Sua participação é voluntária. As respostas serão salvas a cada pergunta para avaliar e melhorar o atendimento. O telefone é opcional e depende de outra autorização.</p><label class="privacy-check"><input type="checkbox" id="privacy-accept"><span>Li o <a href="/privacidade.html" target="_blank" rel="noopener">Aviso de Privacidade</a> e concordo com o uso das informações para essa finalidade.</span></label></section><button class="cta" id="privacy-continue" disabled>Iniciar pesquisa</button><button class="ghost" id="privacy-decline">Não desejo participar</button>');
+  draw('<h1>' + esc(cur.nome) + '</h1><section class="privacy-compact" aria-labelledby="privacy-title"><h2 id="privacy-title">Privacidade (LGPD)</h2><p>Sua participação é voluntária. As respostas serão salvas a cada pergunta para avaliar e melhorar o atendimento. O telefone é opcional e depende de outra autorização.</p><label class="privacy-check"><input type="checkbox" id="privacy-accept"><span>Li o <a href="/privacidade.html" target="_blank" rel="noopener">Aviso de Privacidade</a> e concordo com o uso das informações para essa finalidade.</span></label></section><button class="cta" id="privacy-continue" disabled>Iniciar pesquisa</button>');
   var check = document.getElementById('privacy-accept'), next = document.getElementById('privacy-continue');
-  check.onchange = function () { next.disabled = !check.checked; };
+  function aguardarAceite() {
+    clearTimeout(privacidadeTimer);
+    if (!check.checked) privacidadeTimer = setTimeout(function () {
+      if (document.getElementById('privacy-accept') === check && !check.checked) home();
+    }, 30000);
+  }
+  check.onchange = function () { next.disabled = !check.checked; aguardarAceite(); };
   next.onclick = function () { if (!check.checked) return; ans.aceite_privacidade = true; ans.privacidade_versao = PRIVACIDADE_VERSAO; render(); };
-  document.getElementById('privacy-decline').onclick = home;
+  aguardarAceite();
 }
 
 function salvar(q) {
@@ -76,6 +84,7 @@ function hdr() {
 function bind() { document.getElementById("back").onclick = function () { if (st) { st--; render(); } else home(); }; }
 
 function render() {
+  clearTimeout(privacidadeTimer);
   if (!ans.aceite_privacidade) { aceiteInicial(); return; }
   var qs = Q(), n = qs.length;
   if (st >= n) return details();

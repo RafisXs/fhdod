@@ -58,8 +58,8 @@
     if (!LISTA.length) box.innerHTML = '<p class="load">Nenhum setor ativo para imprimir.</p>';
     $("base").value = BASE; aviso();
     $("png").hidden = $("svg").hidden = TODOS;
-    $("tit").textContent = TODOS ? "Cartazes com QR Code de todos os setores ativos" : "Cartaz do setor: " + LISTA[0].nome;
-    document.title = (TODOS ? "Cartazes QR Code" : "QR Code " + LISTA[0].nome) + " | FHDOD";
+    $("tit").textContent = TODOS ? "Cartazes com QR Code de todos os setores ativos" : GERAL ? "Cartaz geral: escolha seu setor" : "Cartaz do setor: " + LISTA[0].nome;
+    document.title = (TODOS ? "Cartazes QR Code" : GERAL ? "QR Code geral" : "QR Code " + LISTA[0].nome) + " | FHDOD";
   }
 
   function baixar(nome, url) { var a = document.createElement("a"); a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove(); }

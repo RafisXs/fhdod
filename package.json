@@ -13,6 +13,11 @@
     "test:seguranca": "node --test tests/seguranca.test.js",
     "lint": "node server/scripts/verificar-sintaxe.js"
   },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
+  },
   "engines": {
     "node": ">=18"
   },

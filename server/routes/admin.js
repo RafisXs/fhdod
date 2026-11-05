@@ -102,6 +102,7 @@ r.put('/perguntas/:setor', equipe, async (req, res) => {
   const porId = new Map(atuais.map((q) => [q.id, q]));
   const lista = Array.isArray(req.body && req.body.perguntas) ? req.body.perguntas : null;
   if (!lista || !lista.length) return erro(res, 400, 'Dados inválidos.');
+  if (lista.some(q => !q || typeof q !== 'object' || Array.isArray(q))) return erro(res, 400, 'Dados inválidos.');
   // A lista precisa trazer todas as perguntas atuais (evita apagar sem querer com a tela desatualizada)
   const idsEnviados = lista.map((q) => inteiro(q && q.id)).filter((n) => Number.isInteger(n));
   if (new Set(idsEnviados).size !== idsEnviados.length || idsEnviados.length !== atuais.length || atuais.some((q) => !idsEnviados.includes(q.id))) {
@@ -206,6 +207,8 @@ r.patch('/setores/:id', exigirPapel('gerente'), async (req, res) => {
   const [rows] = await pool.query('SELECT id, nome, ordem, ativo FROM setores WHERE id = ?', [id]);
   if (!rows.length) return erro(res, 404, 'Setor não encontrado.');
   const b = req.body || {};
+  if (b.ativo !== undefined && typeof b.ativo !== 'boolean') return erro(res, 400, 'Dados inválidos.');
+  if (b.mover !== undefined && !['cima', 'baixo'].includes(b.mover)) return erro(res, 400, 'Dados inválidos.');
   if (b.nome !== undefined) {
     const nome = nomeSetorValido(b.nome);
     if (!nome) return erro(res, 400, 'Informe o nome do setor (de 3 a 60 caracteres).');
@@ -401,6 +404,7 @@ r.patch('/usuarios/:id', equipe, async (req, res) => {
   const alvo = rows[0];
   if (!alvo || !podeGerir(req.user, alvo)) return erro(res, 404, 'Usuário não encontrado.');
   const b = { ...(req.body || {}) };
+  if (b.ativo !== undefined && typeof b.ativo !== 'boolean') return erro(res, 400, 'Situação da conta inválida.');
   if (req.user.papel === 'admin') { delete b.papel; delete b.setor_id; } // admin não muda perfil nem setor
   let d;
   try { d = await validarUsuario(b, alvo); } catch (e) { return erro(res, 400, e.message); }

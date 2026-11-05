@@ -8,6 +8,8 @@ Na tela **Alterar minha senha**, é possível mostrar/ocultar os campos, conferi
 
 Para verificar sintaxe: `npm run lint`. Para API, segurança e interface em banco temporário isolado: `npm run test:painel` (requer MySQL e Chrome no caminho definido em `tests/painel.test.cjs`). No PowerShell com bloqueio de scripts, use `npm.cmd`. O navegador dessa suíte usa `--no-sandbox` apenas para testes locais; não use esse perfil para navegação comum. O comando `npm run test:seguranca` isolado exige servidor e credenciais de teste configurados; nunca aponte os testes ao banco operacional.
 
+Vistoria de 05/11/2026: **29 testes de API, 10 verificações de segurança e os fluxos de navegador aprovados; zero vulnerabilidades conhecidas na auditoria npm após as correções.** Consulte [o relatório da vistoria](docs/VISTORIA_2026-11-05.md) para alterações, evidências e limitações de volume e implantação. As contagens datadas abaixo descrevem rodadas anteriores.
+
 Sistema web para coletar a avaliação do atendimento por setor (pesquisa de satisfação com NPS) e acompanhar os resultados em um painel com perfis de acesso, TV Wall e exportação em Excel.
 
 > Sistema de avaliação do atendimento da Fundação Hospitalar Dr. Oswaldo Diesel (FHDOD), Três Coroas - RS.
@@ -358,7 +360,7 @@ Verificação registrada em 29/10/2026: **23 testes da API aprovados**, além da
 
 Na rodada de segurança, também passaram **10 verificações na suíte de segurança** (incluindo o cenário principal e seus subtestes), além dos fluxos de auditoria, troca pessoal de senha e primeiro acesso obrigatório em navegador real. Os modelos de implantação não foram instalados em infraestrutura externa e o procedimento de backup/restauração deve ser exercitado no ambiente de destino pela TI.
 
-O teste de navegador utiliza Node.js com `WebSocket` global, Chrome no caminho `C:/Program Files/Google/Chrome/Application/chrome.exe`, porta HTTP `3137` e depuração do navegador na porta `9333`. O ambiente usado foi Node.js 24.14.1 no Windows. O requisito geral Node.js 18+ da aplicação não garante a execução desse teste de navegador sem ajustes. As duas portas precisam estar livres. O teste cria um banco `fhdod_verify_<identificador>` e tenta removê-lo ao finalizar; se o processo for interrompido abruptamente, pode restar um banco temporário. Não aponte a suíte `npm test` manualmente para o banco de uso do hospital: ela grava dados.
+O teste de navegador utiliza Node.js com `WebSocket` global e Chrome no caminho `C:/Program Files/Google/Chrome/Application/chrome.exe`. As portas HTTP e de depuração são escolhidas automaticamente entre portas livres. O ambiente usado foi Node.js 24.14.1 no Windows. O requisito geral Node.js 18+ da aplicação não garante a execução desse teste de navegador sem ajustes. O teste cria um banco `fhdod_verify_<identificador>` e tenta removê-lo ao finalizar; se o processo for interrompido abruptamente, pode restar um banco temporário. Não aponte a suíte `npm test` manualmente para o banco de uso do hospital: ela grava dados.
 
 ## Solução de problemas
 
