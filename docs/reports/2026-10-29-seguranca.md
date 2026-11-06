@@ -1,5 +1,7 @@
 # Relatório de validação da rodada de segurança
 
+> Registro histórico. Os caminhos atuais dos testes e do código estão descritos na [organização do projeto](../development/estrutura.md).
+
 Data: 29/10/2026. Ambiente local: Windows, Node.js 24.14.1, MySQL 8.0.46 e Google Chrome em modo headless.
 
 ## Resultados
@@ -32,4 +34,4 @@ A conferência de migração e a restauração do backup local foram executadas 
 
 ## Limites e verificações ainda necessárias
 
-Os modelos Linux de Nginx, systemd e backup não foram instalados ou exercitados no servidor de produção. Renovação de certificado, firewall, execução agendada, cópia externa, alertas, RPO/RTO e restauração no destino permanecem sob validação da TI. Testes locais não demonstram resistência a carga, acessibilidade integral, 2FA ou conformidade jurídica. O plano dessas entregas está em [pendências](pendencias.md).
+Os modelos Linux de Nginx, systemd e backup não foram instalados ou exercitados no servidor de produção. Renovação de certificado, firewall, execução agendada, cópia externa, alertas, RPO/RTO e restauração no destino permanecem sob validação da TI. Testes locais não demonstram resistência a carga, acessibilidade integral, 2FA ou conformidade jurídica. O plano dessas entregas está em [pendências](../development/pendencias.md).

@@ -2,8 +2,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const assert = require('node:assert/strict');
-process.chdir(path.resolve(__dirname, '../..'));
-require('../server/config');
+const PROJECT_ROOT = path.resolve(__dirname, '../..');
+const SCREENSHOTS = path.join(PROJECT_ROOT, 'verification/screenshots');
+process.chdir(PROJECT_ROOT);
+require('../../src/server/config');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -29,13 +31,13 @@ function run(file, args, options) {
 }
 (async () => {
   connection = await mysql.createConnection({ host: process.env.DB_HOST, port: Number(process.env.DB_PORT || 3306), user: process.env.DB_USER, password: process.env.DB_PASSWORD, multipleStatements: true });
-  const schema = fs.readFileSync('app/database/schema.sql', 'utf8').replaceAll('hospital_experiencia', dbName);
+  const schema = fs.readFileSync(path.join(PROJECT_ROOT, 'database/schema.sql'), 'utf8').replaceAll('hospital_experiencia', dbName);
   await connection.query(schema);
   const [[original]] = await connection.query("SELECT texto FROM perguntas WHERE setor_id='rec' AND ordem=2");
   await connection.query("UPDATE perguntas SET texto='Como foi o atendimento na recepção?' WHERE setor_id='rec' AND ordem=1");
   await connection.query("UPDATE perguntas SET texto='Enunciado personalizado para verificação' WHERE setor_id='rec' AND ordem=2");
   connection.release = () => {};
-  const { migrar } = require('../server/lib/migracao');
+  const { migrar } = require('../../src/server/lib/migracao');
   await migrar({ getConnection: async () => connection });
   const [revised] = await connection.query("SELECT texto FROM perguntas WHERE setor_id='rec' ORDER BY ordem");
   assert.equal(revised[0].texto, 'Como você avalia o atendimento prestado pela recepção?');
@@ -48,13 +50,13 @@ function run(file, args, options) {
   const [created] = await connection.query("INSERT INTO usuarios (nome,email,senha_hash,papel,trocar_senha) VALUES (?,?,?,'gerente',0)", ['Verificação', email, await bcrypt.hash(password, 4)]);
   const port = await portaLivre(), debugPort = await portaLivre();
   const env = { ...process.env, DB_NAME: dbName, HOST: '127.0.0.1', PORT: String(port), BASE_URL: 'http://127.0.0.1:'+port, TEST_GERENTE_EMAIL: email, TEST_GERENTE_SENHA: password, TV_TOKEN: '' };
-  server = spawn(process.execPath, ['server/index.js'], { cwd: path.resolve('app'), env, windowsHide: true, stdio: 'ignore' });
+  server = spawn(process.execPath, ['src/server/index.js'], { cwd: PROJECT_ROOT, env, windowsHide: true, stdio: 'ignore' });
   await ready(env.BASE_URL + '/api/saude');
-  await run(process.execPath, ['--test', 'tests/api.test.js'], { cwd: path.resolve('app'), env, stdio: 'inherit' });
+  await run(process.execPath, ['--test', 'tests/api/api.test.js'], { cwd: PROJECT_ROOT, env, stdio: 'inherit' });
   server.kill(); await new Promise(resolve => server.once('exit', resolve));
-  server = spawn(process.execPath, ['server/index.js'], { cwd: path.resolve('app'), env, windowsHide: true, stdio: 'ignore' });
+  server = spawn(process.execPath, ['src/server/index.js'], { cwd: PROJECT_ROOT, env, windowsHide: true, stdio: 'ignore' });
   await ready(env.BASE_URL + '/api/saude');
-  await run(process.execPath, ['--test', 'tests/seguranca.test.js'], { cwd: path.resolve('app'), env, stdio: 'inherit' });
+  await run(process.execPath, ['--test', 'tests/security/seguranca.test.js'], { cwd: PROJECT_ROOT, env, stdio: 'inherit' });
   const cookie = 'fhdod_token=' + jwt.sign({ id: created.insertId }, process.env.JWT_SECRET, { expiresIn: '10m' });
   const request = async route => { const r = await fetch(env.BASE_URL + route, { headers: { Cookie: cookie } }); assert.equal(r.status, 200); return r.json(); };
   const evaluations = await request('/api/admin/avaliacoes');
@@ -66,7 +68,7 @@ function run(file, args, options) {
   }
   console.log('Filtros por pergunta: OK');
   console.log('Iniciando verificação no Chrome isolado.');
-  chrome = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', ['--headless=new', '--disable-gpu', '--in-process-gpu', '--no-sandbox', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port='+debugPort, '--user-data-dir=' + path.resolve('verification/chrome-' + dbName), 'about:blank'], { windowsHide: true, stdio: 'ignore' });
+  chrome = spawn(process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', ['--headless=new', '--disable-gpu', '--in-process-gpu', '--no-sandbox', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port='+debugPort, '--user-data-dir=' + path.join(PROJECT_ROOT, 'verification/browser/chrome-' + dbName), 'about:blank'], { windowsHide: true, stdio: 'ignore' });
   chrome.on('error', e => { console.error('Chrome:', e.code); });
   const version = await (await ready('http://127.0.0.1:'+debugPort+'/json/version')).json();
   const ws = new WebSocket(version.webSocketDebuggerUrl);
@@ -119,13 +121,13 @@ function run(file, args, options) {
   await until('!QBUSY && document.querySelector("#qmsg").classList.contains("ok")');
   assert.equal(await evaluate('QL.length'),initial);
   await evaluate('setTab("res");F.p="all";updRes()'); await until('document.querySelector(".hist") !== null');
-  fs.mkdirSync('verification', { recursive:true });
-  let screenshot = await cdp('Page.captureScreenshot', { format:'png', captureBeyondViewport: true }); fs.writeFileSync('verification/admin-desktop.png', Buffer.from(screenshot.data,'base64'));
+  fs.mkdirSync(SCREENSHOTS, { recursive:true });
+  let screenshot = await cdp('Page.captureScreenshot', { format:'png', captureBeyondViewport: true }); fs.writeFileSync(path.join(SCREENSHOTS, 'admin-desktop.png'), Buffer.from(screenshot.data,'base64'));
   await cdp('Emulation.setDeviceMetricsOverride', { width:390,height:844,deviceScaleFactor:1,mobile:true });
   assert.equal(await evaluate('document.documentElement.scrollWidth<=window.innerWidth'),true);
-  screenshot = await cdp('Page.captureScreenshot', { format:'png', captureBeyondViewport:true }); fs.writeFileSync('verification/admin-mobile.png',Buffer.from(screenshot.data,'base64'));
+  screenshot = await cdp('Page.captureScreenshot', { format:'png', captureBeyondViewport:true }); fs.writeFileSync(path.join(SCREENSHOTS, 'admin-mobile.png'),Buffer.from(screenshot.data,'base64'));
   await evaluate('setTab("per")'); await until('document.querySelector("#qadd") !== null');
-  screenshot = await cdp('Page.captureScreenshot', { format:'png', captureBeyondViewport:true }); fs.writeFileSync('verification/perguntas-mobile.png',Buffer.from(screenshot.data,'base64'));
+  screenshot = await cdp('Page.captureScreenshot', { format:'png', captureBeyondViewport:true }); fs.writeFileSync(path.join(SCREENSHOTS, 'perguntas-mobile.png'),Buffer.from(screenshot.data,'base64'));
   await evaluate('setTab("audit")');
   await until('document.querySelector("#audit-list table") !== null');
   assert.ok(await evaluate('document.querySelectorAll("#audit-list tbody tr").length > 0'));
@@ -181,7 +183,7 @@ function run(file, args, options) {
   assert.equal(await evaluate('document.querySelector("#privacy-accept").checked'),true);
   await evaluate('document.querySelector("#privacy-accept").click()');
   assert.equal(await evaluate('document.querySelector("#privacy-continue").disabled'),true);
-  screenshot=await cdp('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync('verification/aceite-lgpd-mobile.png',Buffer.from(screenshot.data,'base64'));
+  screenshot=await cdp('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(SCREENSHOTS, 'aceite-lgpd-mobile.png'),Buffer.from(screenshot.data,'base64'));
   await evaluate('document.querySelector("#privacy-accept").click();document.querySelector("#privacy-continue").click()');
   await until('document.querySelector(".opt") !== null');
   await evaluate('document.querySelector(".opt").click();fila');
@@ -189,7 +191,10 @@ function run(file, args, options) {
   assert.equal(draft.status,'rascunho');assert.ok(draft.privacidade_aceita_em);
   const [[saved]]=await connection.query('SELECT COUNT(*) AS n FROM respostas WHERE avaliacao_id=?',[draft.id]);
   assert.equal(saved.n,1);
-  await evaluate('Q().forEach(q=>{ans.r[q.id]=q.tipo==="escala"?5:q.tipo==="nps"?10:[]});ans.d=new Date().toISOString().slice(0,10);ans.tu="Dia";ans.re="Paciente";ans.ti="SUS";T0=Date.now()-10000;st=Q().length;render()');
+  const hospitalDateParts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const hospitalDateValue = type => hospitalDateParts.find(part => part.type === type).value;
+  const hospitalDate = `${hospitalDateValue('year')}-${hospitalDateValue('month')}-${hospitalDateValue('day')}`;
+  await evaluate('Q().forEach(q=>{ans.r[q.id]=q.tipo==="escala"?5:q.tipo==="nps"?10:[]});ans.d=' + JSON.stringify(hospitalDate) + ';ans.tu="Dia";ans.re="Paciente";ans.ti="SUS";T0=Date.now()-10000;st=Q().length;render()');
   assert.equal(await evaluate('document.querySelector("#send").disabled'),false);
   await evaluate('document.querySelector("#send").click()');
   await until('document.querySelector("#again") !== null');

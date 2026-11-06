@@ -13,5 +13,5 @@ function check(dir) {
     }
   }
 }
-for (const dir of ['server', 'public/js', 'tests']) check(path.join(root, dir));
+for (const dir of ['src/server', 'src/public/js', 'scripts', 'tests']) check(path.join(root, dir));
 if (!process.exitCode) console.log('Sintaxe JavaScript válida (node --check).');

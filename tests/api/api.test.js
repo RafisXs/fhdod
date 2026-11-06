@@ -13,7 +13,7 @@ const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:3000';
 const GERENTE = { email: process.env.TEST_GERENTE_EMAIL, senha: process.env.TEST_GERENTE_SENHA };
 const unico = Date.now();
-const { VERSAO_PRIVACIDADE } = require('../server/lib/privacidade');
+const { VERSAO_PRIVACIDADE } = require('../../src/server/lib/privacidade');
 
 async function req(method, caminho, corpo, cookie) {
   if (method === 'POST' && (caminho === '/api/avaliacoes' || caminho === '/api/avaliacoes/iniciar' || /\/concluir$/.test(caminho)) && corpo) {

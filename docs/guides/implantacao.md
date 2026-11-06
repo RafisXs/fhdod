@@ -11,12 +11,12 @@ Este guia descreve uma implantação de referência em Linux com systemd, Nginx,
 | Encarregado / privacidade | Aprovar aviso de privacidade, texto e finalidade do consentimento, prazo de retenção, acesso à auditoria e procedimento de exclusão. |
 | Responsável pela aplicação | Implantar versão identificada por commit, executar testes e migrações em homologação, registrar mudanças e incidentes. |
 
-A liberação institucional depende desses responsáveis. Esta rodada implementa senha pessoal, bloqueio de tentativas e auditoria; não implementa 2FA, descarte automático de telefones ou todo o programa de privacidade. A lista completa está em [pendências](pendencias.md). A escala atual de recomendação continua sendo 1–10, pendente de alinhamento com o formulário FM-NEG-0.083 (0–10).
+A liberação institucional depende desses responsáveis. Esta rodada implementa senha pessoal, bloqueio de tentativas e auditoria; não implementa 2FA, descarte automático de telefones ou todo o programa de privacidade. A lista completa está em [pendências](../development/pendencias.md). A escala atual de recomendação continua sendo 1–10, pendente de alinhamento com o formulário FM-NEG-0.083 (0–10).
 
 ## Preparação e instalação
 
 1. Criar homologação isolada, com banco e domínio próprios. Executar `npm ci`, importar `database/schema.sql` somente na instalação inicial e executar `npm run test:painel` em máquina Windows preparada para a suíte de navegador; ela cria seu próprio banco temporário. Homologar também no ambiente Linux de destino. O teste de navegador local não substitui validação de HTTPS e restauração no destino.
-2. Instalar uma versão suportada do Node.js compatível com o projeto, MySQL e Nginx. Criar usuário de sistema `fhdod`, sem privilégios administrativos, e instalar a aplicação em `/opt/fhdod` (conteúdo do repositório, com `server/`, `public/` e `package.json`).
+2. Instalar uma versão suportada do Node.js compatível com o projeto, MySQL e Nginx. Criar usuário de sistema `fhdod`, sem privilégios administrativos, e instalar a aplicação em `/opt/fhdod` (conteúdo do repositório, com `src/server/`, `src/public/`, `scripts/`, `database/` e `package.json`). O modelo systemd inicia `/opt/fhdod/src/server/index.js`.
 3. Manter MySQL acessível apenas pela rede necessária. Utilizar conta exclusiva para a aplicação. Nunca executar o servidor Node como root nem usar a conta root do MySQL na operação normal.
 4. Fazer backup antes de atualizar. Durante a implantação, executar `npm ci --omit=dev`, `npm run migrar` e reiniciar o serviço em janela planejada. As migrações alteram tabelas: algumas instruções DDL não são revertidas por uma transação MySQL. O retorno a uma versão anterior pode exigir restauração do banco, não apenas do código.
 5. A inicialização também verifica/aplica migrações. A conta configurada precisa de permissões compatíveis, incluindo consultas ao esquema, `CREATE`/`ALTER` e as permissões de leitura/escrita utilizadas. O desenho atual ainda não separa automaticamente credenciais de migração das de execução. Documentar essa exceção e restringir o acesso à rede e ao arquivo de configuração.
@@ -47,7 +47,7 @@ Não inserir senhas em comandos, histórico do terminal, links de suporte ou doc
 
 ## HTTPS e serviço com reinício automático
 
-Usar os modelos [Nginx](deploy/nginx.conf) e [systemd](deploy/fhdod.service). Emitir certificado válido para o domínio real usando o processo aprovado pela TI, configurar renovação automática e alertas de expiração, e somente então habilitar a configuração TLS. O modelo espera certificados nos caminhos indicados; não cria certificados.
+Usar os modelos [Nginx](../deploy/nginx.conf) e [systemd](../deploy/fhdod.service). Emitir certificado válido para o domínio real usando o processo aprovado pela TI, configurar renovação automática e alertas de expiração, e somente então habilitar a configuração TLS. O modelo espera certificados nos caminhos indicados; não cria certificados.
 
 ```sh
 sudo nginx -t
@@ -66,7 +66,7 @@ Validar redirecionamento HTTP → HTTPS, certificado e cadeia de confiança, coo
 
 Definir com o hospital os objetivos de perda aceitável (RPO), tempo de recuperação (RTO), retenção e quem recebe alertas. Um backup diário admite perda de até aproximadamente 24 horas desde a última cópia; necessidades menores exigem estratégia adicional, por exemplo logs binários e recuperação até um instante específico.
 
-O modelo [backup-mysql.sh](deploy/backup-mysql.sh) executa `mysqldump` consistente para tabelas InnoDB, comprime a saída, gera SHA-256 e só publica o arquivo final após sucesso. Não executar alterações DDL durante o dump. Instalar fora do diretório público, por exemplo `/usr/local/sbin/fhdod-backup`, com conta e permissões definidas pela TI. A conta de backup deve ter os privilégios exigidos pelo MySQL e pelas opções utilizadas, testados no servidor de destino.
+O modelo [backup-mysql.sh](../deploy/backup-mysql.sh) executa `mysqldump` consistente para tabelas InnoDB, comprime a saída, gera SHA-256 e só publica o arquivo final após sucesso. Não executar alterações DDL durante o dump. Instalar fora do diretório público, por exemplo `/usr/local/sbin/fhdod-backup`, com conta e permissões definidas pela TI. A conta de backup deve ter os privilégios exigidos pelo MySQL e pelas opções utilizadas, testados no servidor de destino.
 
 Armazenar credenciais em `/etc/fhdod/backup.cnf`, protegido por permissões restritas:
 
