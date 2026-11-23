@@ -1,0 +1,68 @@
+name: Validação da plataforma
+
+on:
+  push:
+    branches: [main, 'revisao/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validacao-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: teste-local-descartavel
+          MYSQL_ROOT_HOST: '%'
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pteste-local-descartavel"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      NODE_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: teste-local-descartavel
+      DB_NAME: fhdod_ci
+      COOKIE_SECURE: 'false'
+      AUTO_MIGRATE: 'true'
+      JWT_SECRET: segredo-exclusivo-descartavel-do-ci-nao-usar-em-producao
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        with:
+          chrome-version: stable
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:unit
+      - run: npm audit --omit=dev --audit-level=moderate
+      - run: npm run test:painel
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: capturas-de-testes
+          path: verification/screenshots/*.png
+          if-no-files-found: ignore
+          retention-days: 7

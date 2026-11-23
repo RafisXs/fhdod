@@ -18,10 +18,11 @@ Esta lista distingue entregas desta rodada de requisitos ainda pendentes. Não r
 | Relatório mensal em PDF por setor | Pendente. Impressão do painel e exportação Excel permanecem disponíveis. |
 | Comentário livre e marcação de tratamento | Pendente de tratamento de dados sensíveis, controles de acesso e revisão de conteúdo. |
 | Perguntas condicionais e cópia de modelos | Pendente. Inclusão atual utiliza modelos básicos editáveis, sem lógica condicional. |
-| Agregação completa no MySQL | Pendente: permanecem limites de carregamento descritos no README. |
+| Completude e agregação no MySQL | Cortes de 5.000/20.000/200.000 removidos em 10/11/2026. Resultado por pergunta agregado no MySQL; painel por cursor e Excel em streaming. Demais gráficos ainda usam a base no navegador; agregação integral e paginação dos contatos permanecem como evolução. |
 | CAPTCHA ou limite por QR Code | Pendente. Permanecem limites por endereço e validações existentes. |
 | Quiosque, fonte grande e leitor de tela | Pendentes de implementação/avaliação. Navegação por teclado dos seletores não substitui teste completo de acessibilidade. |
 | Documentação de requisitos, arquitetura e Git/Kanban | Guia operacional e esta lista entregues; documentos completos e endereço real do Kanban pendentes. |
-| CI no GitHub e teste de carga | Pendentes. Testes locais de API, segurança e interface disponíveis. |
+| CI no GitHub e teste de carga | Workflow e Dependabot configurados. Testes locais incluem 20.001 avaliações, 220.011 respostas e uma amostra de 100 consultas concorrentes. Carga representativa e desempenho na infraestrutura final permanecem pendentes. |
+| Configuração de produção e monitoramento | Validação de configurações inseguras, migrações separadas, endpoints de saúde, comando de monitoramento e encerramento controlado implementados. Domínio, HTTPS, contas SQL e canal de alertas precisam ser configurados no destino. |
 
 Para priorização, cada item deve receber responsável, critérios de aceite e data acordada. Evitar habilitar serviços externos, envio de mensagens ou descarte de dados antes de definir os parâmetros e as responsabilidades.

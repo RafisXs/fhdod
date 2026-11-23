@@ -8,46 +8,45 @@ Backend em Node.js/Express e MySQL; frontend em HTML, CSS e JavaScript, servido 
 
 ```text
 fhdod/
-├── src/
-│   ├── server/                  # Backend e regras da aplicação
-│   │   ├── index.js             # Servidor HTTP e arquivos estáticos
-│   │   ├── config.js            # Carregamento do .env
-│   │   ├── db.js                # Conexão MySQL
-│   │   ├── lib/                 # Avaliações, autenticação e migrações
-│   │   └── routes/              # Rotas públicas e administrativas
-│   └── public/                  # Frontend
-│       ├── index.html           # Pesquisa de satisfação
-│       ├── admin.html           # Painel da equipe
-│       ├── qr.html              # Cartazes com QR Code
-│       ├── tv.html              # TV de indicadores
-│       ├── privacidade.html     # Aviso de privacidade
-│       ├── css/
-│       ├── img/
-│       └── js/                  # Scripts das telas; vendor/ para biblioteca QR
-├── database/
-│   └── schema.sql               # Banco inicial, tabelas e perguntas padrão
+├── frontend/
+│   ├── public/
+│   │   ├── images/                 # Imagens institucionais
+│   │   └── icons/                  # Ícones públicos
+│   ├── src/
+│   │   ├── assets/{styles,vendor}/ # Estilos e biblioteca QR
+│   │   ├── components/
+│   │   │   ├── common/             # Componentes visuais comuns
+│   │   │   ├── ui/                 # Campos e seletores
+│   │   │   └── layout/             # Estrutura compartilhada
+│   │   ├── pages/                  # HTML e lógica de cada tela
+│   │   ├── services/api.js         # Comunicação HTTP
+│   │   ├── utils/                 # Funções auxiliares
+│   │   └── main.js                # Entrada da pesquisa
+│   ├── index.html
+│   └── package.json
+├── backend/
+│   ├── src/
+│   │   ├── config/                # Ambiente e conexão MySQL
+│   │   ├── controllers/           # Tratamento das requisições
+│   │   ├── models/                # Consultas de avaliações
+│   │   ├── routes/                # Rotas e proteção de acesso
+│   │   ├── middleware/            # Autenticação e limites
+│   │   ├── services/              # Regras, segurança e migrações
+│   │   ├── utils/                 # Constantes e auxiliares
+│   │   ├── validations/           # Validação de ambiente e respostas
+│   │   ├── app.js                 # Configuração do Express
+│   │   └── server.js              # Inicialização e encerramento
+│   ├── .env.example
+│   └── package.json
+├── database/schema.sql
 ├── scripts/
-│   ├── database/                # Criação do gerente e migração do banco
-│   └── checks/                  # Verificação de sintaxe
 ├── tests/
-│   ├── api/                     # Testes das rotas e validações
-│   ├── security/                # Sessões, senhas, permissões e auditoria
-│   └── e2e/                     # Fluxos completos no navegador
 ├── docs/
-│   ├── guides/                  # Implantação e operação
-│   ├── deploy/                  # Modelos Nginx, systemd e backup
-│   ├── development/             # Organização e pendências
-│   ├── reference/               # Manual detalhado e indicadores
-│   └── reports/                 # Relatórios datados de revisão e testes
-├── .editorconfig               # Convenções de edição
-├── .gitattributes              # Formatos de texto e arquivos binários
-├── .env.example                # Modelo de configuração, sem credenciais reais
-├── .gitignore
-├── package.json
-└── package-lock.json
+├── package.json                   # Comandos e npm workspaces
+└── package-lock.json              # Dependências dos dois pacotes
 ```
 
-Na cópia de trabalho que contém uma pasta `app/`, esta árvore fica dentro de `app/`, onde está o repositório Git. No GitHub, `src/`, `database/`, `scripts/`, `tests/` e `docs/` aparecem diretamente na raiz. A pasta externa é apenas um workspace com atalhos npm.
+Na cópia de trabalho que contém uma pasta `app/`, esta árvore fica dentro de `app/`, onde está o repositório Git. No GitHub, `frontend/`, `backend/`, `database/`, `scripts/`, `tests/` e `docs/` aparecem diretamente na raiz. A pasta externa é apenas um workspace com atalhos npm.
 
 Arquivos locais gerados ficam em `verification/`: capturas em `screenshots/`, perfis temporários em `browser/` e evidências antigas em `archive/`. Essa pasta, o `.env` real, backups e `node_modules/` são ignorados pelo Git.
 
@@ -61,16 +60,16 @@ Dentro da raiz do repositório:
 npm ci
 ```
 
-Crie o `.env` a partir de [.env.example](.env.example):
+Crie `backend/.env` a partir de [backend/.env.example](backend/.env.example):
 
 ```powershell
 # PowerShell
-Copy-Item .env.example .env
+Copy-Item backend/.env.example backend/.env
 ```
 
 ```sh
 # Linux/macOS
-cp .env.example .env
+cp backend/.env.example backend/.env
 ```
 
 Preencha `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` e `DB_PASSWORD` com os dados do MySQL. Defina `JWT_SECRET` com um segredo aleatório de pelo menos 24 caracteres; o texto do exemplo não é aceito. Mantenha `COOKIE_SECURE=false` apenas no desenvolvimento por HTTP.
@@ -90,7 +89,7 @@ npm run criar-gerente
 npm start
 ```
 
-No primeiro acesso, a conta precisa trocar a senha provisória. Em instalações existentes, utilize `npm run migrar` para atualizar o banco; o servidor também verifica as migrações ao iniciar. Faça backup antes de atualizar.
+No primeiro acesso, a conta precisa trocar a senha provisória. Em instalações existentes, utilize `npm run migrar` para atualizar o banco. Em desenvolvimento, o servidor também verifica migrações ao iniciar; em produção elas ficam desabilitadas por padrão para permitir conta de operação sem permissões DDL. Faça backup antes de atualizar.
 
 No PowerShell, use `npm.cmd` se a política local bloquear `npm.ps1`. No workspace que contém `app/`, execute os mesmos comandos de uso pelos atalhos da pasta externa; para instalar, utilize `npm.cmd --prefix app ci`.
 
@@ -134,24 +133,30 @@ Use a porta configurada em `PORT`, caso seja diferente de 3000. Os caminhos púb
 | `npm run test:painel` | Executar API, segurança e navegador em banco temporário isolado. |
 | `npm test` | Executar API contra servidor de teste previamente configurado. |
 | `npm run test:seguranca` | Executar segurança no banco temporário permitido pela suíte. |
+| `npm run test:unit` | Validar configurações de produção sem acessar o banco. |
+| `npm run test:volume` | Executar cenários de volume no banco temporário preparado pela suíte. |
+| `npm run monitorar -- https://SEU-DOMINIO` | Verificar disponibilidade do processo e do banco. |
 
 A suíte completa cria e remove um banco `fhdod_verify_<identificador>`, inicia um servidor próprio em porta livre e gera capturas em `verification/screenshots/`. O usuário MySQL utilizado nos testes precisa de permissão para criar e remover o banco e criar triggers de teste. Os comandos isolados de API e segurança gravam dados: utilize a suíte completa e consulte [tests/README.md](tests/README.md).
 
 O Chrome é localizado no caminho padrão do Windows. Para outro caminho, defina `CHROME_PATH` no ambiente ou no `.env`. O perfil de teste usa `--no-sandbox` apenas na execução automatizada e não deve ser usado para navegação comum.
 
-Validação após a reorganização: **29 testes da API, 10 verificações de segurança e fluxos de navegador aprovados**, incluindo pesquisa, permissões, Excel, TV, QR e impressão A4. A [vistoria](docs/reports/2026-11-05-vistoria.md) detalha as correções anteriores; a [organização](docs/development/estrutura.md) documenta os caminhos novos.
+Validação de 10/11/2026: **29 testes da API, 10 verificações de segurança, 7 de integração/volume e 4 de configuração aprovados**, além dos fluxos de navegador. O cenário de volume utiliza 20.001 avaliações e 220.011 respostas em banco descartável. A [preparação para produção](docs/guides/entrada-em-producao.md) descreve as melhorias e os critérios de liberação.
+
+O workflow em `.github/workflows/validacao.yml` executa sintaxe, testes, auditoria npm, MySQL isolado e Chrome a cada push nas branches configuradas e em pull requests. O Dependabot está configurado para revisar npm e Actions semanalmente; sua ativação depende da configuração estar na branch padrão do GitHub.
 
 ## Documentação e operação
 
 - [Índice da documentação](docs/README.md).
 - [Manual detalhado: funcionalidades, configuração, API e indicadores](docs/reference/manual-detalhado.md).
 - [Implantação, HTTPS, serviço e backup](docs/guides/implantacao.md).
+- [Preparação para uso institucional e critérios de liberação](docs/guides/entrada-em-producao.md).
 - [Estrutura, responsabilidades das pastas e arquivos movidos](docs/development/estrutura.md).
 - [Pendências e validações institucionais](docs/development/pendencias.md).
 - [Relatórios de revisão e testes](docs/reports/README.md).
 
-O painel carrega até 5.000 avaliações, a exportação até 20.000 e o resultado por pergunta até 200.000 respostas. Ao atingir esses limites, os totais podem ficar incompletos. HTTPS, domínio real, restauração de backup e leitura física dos cartazes precisam ser validados no ambiente de destino. Texto de privacidade e política de retenção dependem da aprovação dos responsáveis do hospital.
+Os antigos cortes em 5.000 avaliações no painel, 20.000 no Excel e 200.000 respostas por pergunta foram removidos. O painel carrega páginas de 500 registros, o Excel é escrito em lotes e o resultado por pergunta é agregado no MySQL. Parte dos gráficos ainda usa a base completa no navegador, então memória e tempo de carregamento devem ser homologados para o volume esperado. HTTPS, domínio real, restauração de backup e leitura física dos cartazes precisam ser validados no destino. MFA ainda está pendente. Texto de privacidade e política de retenção dependem da aprovação dos responsáveis do hospital.
 
 ## Créditos e licença
 
-Identificação institucional: Fundação Hospitalar Dr. Oswaldo Diesel, Três Coroas — RS. O projeto está marcado como `UNLICENSED`; a publicação do código não concede licença de uso. A biblioteca local de QR Code mantém seu aviso de licença próprio em [src/public/js/vendor/qrcode.js](src/public/js/vendor/qrcode.js).
+Identificação institucional: Fundação Hospitalar Dr. Oswaldo Diesel, Três Coroas — RS. O projeto está marcado como `UNLICENSED`; a publicação do código não concede licença de uso. A biblioteca local de QR Code mantém seu aviso de licença próprio em [frontend/src/assets/vendor/qrcode.js](frontend/src/assets/vendor/qrcode.js).

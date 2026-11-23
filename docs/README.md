@@ -5,6 +5,7 @@ O [README principal](../README.md) apresenta instalação, execução e comandos
 | Pasta | Conteúdo |
 | --- | --- |
 | [guides/](guides/implantacao.md) | Implantação, configuração de produção, operação e recuperação. |
+| [guides/entrada-em-producao.md](guides/entrada-em-producao.md) | Melhorias técnicas entregues, monitoramento e critérios de liberação institucional. |
 | [deploy/](deploy/) | Modelos de Nginx, serviço systemd e backup MySQL. |
 | [development/](development/estrutura.md) | Estrutura do projeto e responsabilidades das pastas. |
 | [development/pendencias.md](development/pendencias.md) | Evoluções e definições institucionais ainda pendentes. |

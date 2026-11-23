@@ -16,10 +16,10 @@ A liberação institucional depende desses responsáveis. Esta rodada implementa
 ## Preparação e instalação
 
 1. Criar homologação isolada, com banco e domínio próprios. Executar `npm ci`, importar `database/schema.sql` somente na instalação inicial e executar `npm run test:painel` em máquina Windows preparada para a suíte de navegador; ela cria seu próprio banco temporário. Homologar também no ambiente Linux de destino. O teste de navegador local não substitui validação de HTTPS e restauração no destino.
-2. Instalar uma versão suportada do Node.js compatível com o projeto, MySQL e Nginx. Criar usuário de sistema `fhdod`, sem privilégios administrativos, e instalar a aplicação em `/opt/fhdod` (conteúdo do repositório, com `src/server/`, `src/public/`, `scripts/`, `database/` e `package.json`). O modelo systemd inicia `/opt/fhdod/src/server/index.js`.
+2. Instalar uma versão suportada do Node.js compatível com o projeto, MySQL e Nginx. Criar usuário de sistema `fhdod`, sem privilégios administrativos, e instalar a aplicação em `/opt/fhdod` (conteúdo do repositório, com `backend/src/`, `frontend/`, `scripts/`, `database/` e `package.json`). O modelo systemd inicia `/opt/fhdod/backend/src/server.js`.
 3. Manter MySQL acessível apenas pela rede necessária. Utilizar conta exclusiva para a aplicação. Nunca executar o servidor Node como root nem usar a conta root do MySQL na operação normal.
 4. Fazer backup antes de atualizar. Durante a implantação, executar `npm ci --omit=dev`, `npm run migrar` e reiniciar o serviço em janela planejada. As migrações alteram tabelas: algumas instruções DDL não são revertidas por uma transação MySQL. O retorno a uma versão anterior pode exigir restauração do banco, não apenas do código.
-5. A inicialização também verifica/aplica migrações. A conta configurada precisa de permissões compatíveis, incluindo consultas ao esquema, `CREATE`/`ALTER` e as permissões de leitura/escrita utilizadas. O desenho atual ainda não separa automaticamente credenciais de migração das de execução. Documentar essa exceção e restringir o acesso à rede e ao arquivo de configuração.
+5. Em desenvolvimento, a inicialização aplica migrações por padrão. Em produção, o padrão é `AUTO_MIGRATE=false`: executar `npm run migrar` separadamente com a conta de manutenção e iniciar o servidor com uma conta de operação sem permissões DDL. A configuração e a seleção dessas contas são responsabilidade da TI. `AUTO_MIGRATE=true` habilita explicitamente o comportamento automático, exigindo `CREATE`/`ALTER` e demais permissões usadas pela migração; não é a configuração recomendada para operação.
 6. Criar o primeiro gerente com `npm run criar-gerente`. O comando cria/redefine uma senha provisória; o gerente deve substituí-la na interface no primeiro acesso. O procedimento de recuperação é administrativo: verificar a identidade do solicitante antes de executar o comando e registrar a autorização.
 
 ## Configuração protegida
@@ -38,10 +38,11 @@ DB_PASSWORD=SUBSTITUIR_NO_SERVIDOR
 JWT_SECRET=SUBSTITUIR_POR_SEGREDO_ALEATORIO
 COOKIE_SECURE=true
 TRUST_PROXY=1
+AUTO_MIGRATE=false
 TV_TOKEN=SUBSTITUIR_POR_TOKEN_ALEATORIO
 ```
 
-Gerar segredos com `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`. `TRUST_PROXY=1` pressupõe exatamente um proxy confiável entre o cliente e a aplicação. A porta Node deve permanecer inacessível externamente; sem essa restrição, cabeçalhos de origem podem ser forjados. Se houver balanceador ou CDN adicional, revisar essa configuração e os cabeçalhos no destino.
+Gerar segredos com `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`. Produção exige segredo exclusivo de pelo menos 48 caracteres, `COOKIE_SECURE=true`, conta MySQL diferente de root, nome do banco e senha preenchidos. O exemplo acima é um modelo e precisa ser substituído antes de iniciar. `TRUST_PROXY=1` pressupõe exatamente um proxy confiável entre o cliente e a aplicação. A porta Node deve permanecer inacessível externamente; sem essa restrição, cabeçalhos de origem podem ser forjados. Se houver balanceador ou CDN adicional, revisar essa configuração e os cabeçalhos no destino.
 
 Não inserir senhas em comandos, histórico do terminal, links de suporte ou documentação. O token da TV aparece na URL; limitar o acesso aos registros do proxy e não compartilhar esse link fora da instituição.
 

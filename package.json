@@ -2,16 +2,19 @@
   "name": "avaliacao-fhdod",
   "version": "1.1.0",
   "description": "Sistema de avaliação do atendimento para a Fundação Hospitalar Dr. Oswaldo Diesel",
-  "main": "src/server/index.js",
+  "main": "backend/src/server.js",
   "scripts": {
-    "start": "node src/server/index.js",
-    "dev": "node --watch src/server/index.js",
+    "start": "npm run start --workspace @fhdod/backend",
+    "dev": "npm run dev --workspace @fhdod/backend",
     "criar-gerente": "node scripts/database/criar-gerente.js",
     "migrar": "node scripts/database/migrar.js",
     "test": "node --test tests/api/api.test.js",
+    "test:unit": "node --test tests/unit/*.test.js",
+    "test:volume": "node --test tests/integration/relatorios.test.js",
     "test:painel": "node tests/e2e/painel.test.cjs",
     "test:seguranca": "node --test tests/security/seguranca.test.js",
-    "lint": "node scripts/checks/verificar-sintaxe.js"
+    "lint": "node scripts/checks/verificar-sintaxe.js",
+    "monitorar": "node scripts/checks/monitorar.js"
   },
   "overrides": {
     "exceljs": {
@@ -23,15 +26,8 @@
   },
   "license": "UNLICENSED",
   "private": true,
-  "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "cookie-parser": "^1.4.7",
-    "dotenv": "^18.0.8",
-    "exceljs": "^4.4.0",
-    "express": "^5.3.0",
-    "express-rate-limit": "^8.7.1",
-    "helmet": "^8.3.0",
-    "jsonwebtoken": "^9.0.3",
-    "mysql2": "^3.24.6"
-  }
+  "workspaces": [
+    "frontend",
+    "backend"
+  ]
 }

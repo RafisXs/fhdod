@@ -51,8 +51,8 @@ Evidências da rodada: [relatório de testes de segurança](../reports/2026-10-2
 - Quando a nota fica abaixo da média, aparece um campo **opcional** de telefone, com autorização expressa de contato, para a gestão do setor ligar e entender o que houve.
 - Link direto por setor, para gerar QR Code: `/?setor=rx`.
 - Layout para celular, navegação por teclado e foco visível.
-- **Privacidade (LGPD):** uma caixa compacta antes da primeira pergunta resume a finalidade e permite ler o [Aviso de Privacidade](../../src/public/privacidade.html). O aceite começa desmarcado e libera o início da pesquisa. O telefone continua opcional, com autorização separada. O aviso permanece acessível no rodapé; a última etapa apenas relembra o aceite, sem exigir nova marcação.
-- **Evidência no servidor:** a primeira resposta salva registra a versão do aviso e a data/hora UTC do aceite (`privacidade_versao`, `privacidade_aceita_em`). A API exige aceite booleano explícito e a versão atual para iniciar, enviar ou concluir avaliações. Registros anteriores permanecem com campos nulos, sem atribuir aceite retroativo. A versão atual é definida em `src/server/lib/privacidade.js` e informada por `/api/perguntas`.
+- **Privacidade (LGPD):** uma caixa compacta antes da primeira pergunta resume a finalidade e permite ler o [Aviso de Privacidade](../../frontend/src/pages/privacidade.html). O aceite começa desmarcado e libera o início da pesquisa. O telefone continua opcional, com autorização separada. O aviso permanece acessível no rodapé; a última etapa apenas relembra o aceite, sem exigir nova marcação.
+- **Evidência no servidor:** a primeira resposta salva registra a versão do aviso e a data/hora UTC do aceite (`privacidade_versao`, `privacidade_aceita_em`). A API exige aceite booleano explícito e a versão atual para iniciar, enviar ou concluir avaliações. Registros anteriores permanecem com campos nulos, sem atribuir aceite retroativo. A versão atual é definida em `backend/src/utils/privacidade.js` e informada por `/api/perguntas`.
 
 **Área restrita (equipe) - `/admin`**
 
@@ -135,11 +135,11 @@ Pré-requisitos: **Node.js 18 ou superior** (com npm) e **MySQL Server 8.0 ou su
    npm install
    ```
 
-3. Crie o arquivo `.env` a partir do modelo e preencha com os seus valores (veja a próxima seção):
+3. Crie o arquivo `backend/.env` a partir do modelo e preencha com os seus valores (veja a próxima seção):
 
    ```
-   copy .env.example .env        (Windows)
-   cp .env.example .env          (Linux e macOS)
+   copy backend\.env.example backend\.env        (Windows)
+   cp backend/.env.example backend/.env          (Linux e macOS)
    ```
 
 4. Crie o banco e as tabelas. No **MySQL Workbench**: abra a conexão, menu *File > Open SQL Script*, escolha `database/schema.sql` e clique no raio (Execute). Ou pelo terminal:
@@ -160,7 +160,7 @@ Pré-requisitos: **Node.js 18 ou superior** (com npm) e **MySQL Server 8.0 ou su
 
 O arquivo `.env` guarda as credenciais e **não vai para o GitHub** (está no `.gitignore`). Nunca coloque senhas no código-fonte.
 
-O módulo `src/server/config.js` procura primeiro `app/.env` e depois o `.env` da pasta principal. Para uma mesma variável, o valor de `app/.env` tem prioridade sobre o arquivo da pasta principal; variáveis já definidas no ambiente do processo são preservadas. Isso permite iniciar o servidor e os comandos de manutenção sem depender da pasta atual do terminal. Evite manter valores contraditórios nos dois arquivos.
+O módulo `backend/src/config/env.js` procura primeiro `app/.env` e depois o `.env` da pasta principal. Para uma mesma variável, o valor de `app/.env` tem prioridade sobre o arquivo da pasta principal; variáveis já definidas no ambiente do processo são preservadas. Isso permite iniciar o servidor e os comandos de manutenção sem depender da pasta atual do terminal. Evite manter valores contraditórios nos dois arquivos.
 
 | Variável | Para que serve | Exemplo |
 | --- | --- | --- |
@@ -274,6 +274,7 @@ Todas as respostas são JSON, exceto a exportação em Excel. Pedidos que altera
 | Método | Rota | Perfis |
 | --- | --- | --- |
 | GET | `/api/admin/avaliacoes` | Todos |
+| GET | `/api/admin/avaliacoes/paginas?antes=<id>` | Todos, respeitando o setor; lotes de até 500 registros com cursor `proxima`. |
 | GET | `/api/admin/export.xlsx` | Todos |
 | PATCH | `/api/admin/avaliacoes/:id/contato` | Gerente, administrador |
 | GET, PUT | `/api/admin/perguntas/:setor` | Gerente, administrador (salva a lista inteira: novas, ordem, exclusões) |
@@ -349,16 +350,16 @@ O teste de navegador utiliza Node.js com `WebSocket` global e Chrome no caminho 
 ## Limitações conhecidas
 
 - A proteção contra envios falsos na pesquisa é um campo escondido e um tempo mínimo no navegador, somada ao limite de envios por endereço. Para proteção forte, o ideal é um captcha validado no servidor.
-- O painel carrega as 5.000 avaliações mais recentes. Com volume maior, os totais devem ser calculados no banco.
+- O painel percorre todas as páginas de avaliações; parte dos gráficos ainda é calculada no navegador. Com volume muito alto, memória e tempo de carregamento devem ser homologados e a agregação dos demais indicadores deve ser transferida ao banco.
 - A escala de recomendação vai de 1 a 10 e o NPS oficial usa 0 a 10, então a comparação direta com o formulário em papel pode ter pequenas diferenças.
 - O servidor não faz HTTPS sozinho. Em produção, publique atrás de um proxy com HTTPS e use `COOKIE_SECURE=true` e `TRUST_PROXY`.
 - Não há recuperação de senha por e-mail: o gerente (ou o administrador, para visualizadores) define uma nova senha na aba Equipe.
 - Todos os perfis podem trocar a própria senha. Recuperação sem conhecimento da senha atual continua dependendo da gestão; para o gerente, o procedimento de contingência usa `npm run criar-gerente` após validação da identidade e autorização.
-- A pasta `docs/` contém o guia de implantação, modelos e pendências. Documentação online OpenAPI/Swagger, CI e teste de carga ainda não foram entregues.
+- A pasta `docs/` contém o guia de implantação, modelos e pendências. CI, testes de volume e uma amostra de concorrência estão implementados. OpenAPI/Swagger e teste de carga representativo na infraestrutura definitiva permanecem pendentes.
 
 ## Créditos
 
-- Geração do QR Code: biblioteca `qrcode-generator` 1.4.4, de Kazuhiko Arase, licença MIT (arquivo `src/public/js/vendor/qrcode.js`, com o aviso de licença mantido). "QR Code" é marca registrada da DENSO WAVE INCORPORATED.
+- Geração do QR Code: biblioteca `qrcode-generator` 1.4.4, de Kazuhiko Arase, licença MIT (arquivo `frontend/src/assets/vendor/qrcode.js`, com o aviso de licença mantido). "QR Code" é marca registrada da DENSO WAVE INCORPORATED.
 
 ## Fontes institucionais
 
@@ -489,8 +490,8 @@ Ao interpretar ou comparar resultados, considere:
 - **Tamanho da amostra:** seis avaliações descrevem seis registros recebidos e não demonstram, isoladamente, a experiência de todos os pacientes do hospital. Sempre apresente os percentuais acompanhados da quantidade de avaliações.
 - **Mesmo recorte:** use o mesmo período, setor, turno e tipo de atendimento ao comparar tela, Excel e consultas ao banco. Considere o fuso e o instante da consulta.
 - **Mudanças de formulário:** quantidade de perguntas e enunciados podem mudar. Isso altera a composição das respostas e os pesos do indicador de satisfação, mesmo sem erro matemático.
-- **Limites de carregamento:** o painel usa até 5.000 avaliações mais recentes dentro do alcance do usuário; a exportação usa até 20.000 registros após os filtros; o resultado por pergunta consulta até 200.000 linhas de respostas. Ao atingir esses limites, as bases podem divergir e os totais não devem ser considerados completos sem revisão das consultas.
+- **Completude e volume:** os antigos cortes em 5.000 avaliações, 20.000 registros exportados e 200.000 respostas foram removidos. O painel utiliza cursor em lotes de 500, o Excel é escrito em streaming e o resultado por pergunta é agregado no MySQL. O navegador ainda mantém a base completa para parte dos gráficos; leituras em lotes não oferecem um snapshot transacional único durante alterações simultâneas. Homologar memória, desempenho e limites naturais do Excel para o volume esperado.
 - **Diferenças entre indicadores:** nota média, satisfação, NPS e atenção medem aspectos distintos e possuem denominadores ou regras diferentes. Não devem ser tratados como medidas equivalentes.
 - **Arredondamento:** médias e percentuais exibidos têm precisão menor que os valores usados nos cálculos. Não recalcule o NPS subtraindo apenas percentuais já arredondados quando houver acesso às contagens originais.
 
-Os principais pontos do código para auditoria são `src/public/js/admin.js` (filtros, indicadores e gráficos), `src/server/lib/avaliacoes.js` (resumo e leitura das respostas), `src/server/lib/util.js` (limites e perguntas padrão), `src/server/routes/admin.js` (resultado por pergunta e Excel) e `src/server/routes/public.js` (indicadores agregados da TV).
+Os principais pontos do código para auditoria são `frontend/src/pages/admin.js` (filtros, indicadores e gráficos), `backend/src/services/avaliacoes.js` (resumo e leitura das respostas), `backend/src/utils/util.js` (limites e perguntas padrão), `backend/src/controllers/admin.js` (resultado por pergunta e Excel) e `backend/src/controllers/public.js` (indicadores agregados da TV).

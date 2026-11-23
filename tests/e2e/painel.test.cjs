@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const SCREENSHOTS = path.join(PROJECT_ROOT, 'verification/screenshots');
 process.chdir(PROJECT_ROOT);
-require('../../src/server/config');
+require('../../backend/src/config/env');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -37,7 +37,7 @@ function run(file, args, options) {
   await connection.query("UPDATE perguntas SET texto='Como foi o atendimento na recepção?' WHERE setor_id='rec' AND ordem=1");
   await connection.query("UPDATE perguntas SET texto='Enunciado personalizado para verificação' WHERE setor_id='rec' AND ordem=2");
   connection.release = () => {};
-  const { migrar } = require('../../src/server/lib/migracao');
+  const { migrar } = require('../../backend/src/services/migracao');
   await migrar({ getConnection: async () => connection });
   const [revised] = await connection.query("SELECT texto FROM perguntas WHERE setor_id='rec' ORDER BY ordem");
   assert.equal(revised[0].texto, 'Como você avalia o atendimento prestado pela recepção?');
@@ -50,13 +50,14 @@ function run(file, args, options) {
   const [created] = await connection.query("INSERT INTO usuarios (nome,email,senha_hash,papel,trocar_senha) VALUES (?,?,?,'gerente',0)", ['Verificação', email, await bcrypt.hash(password, 4)]);
   const port = await portaLivre(), debugPort = await portaLivre();
   const env = { ...process.env, DB_NAME: dbName, HOST: '127.0.0.1', PORT: String(port), BASE_URL: 'http://127.0.0.1:'+port, TEST_GERENTE_EMAIL: email, TEST_GERENTE_SENHA: password, TV_TOKEN: '' };
-  server = spawn(process.execPath, ['src/server/index.js'], { cwd: PROJECT_ROOT, env, windowsHide: true, stdio: 'ignore' });
+  server = spawn(process.execPath, ['backend/src/server.js'], { cwd: PROJECT_ROOT, env, windowsHide: true, stdio: 'ignore' });
   await ready(env.BASE_URL + '/api/saude');
   await run(process.execPath, ['--test', 'tests/api/api.test.js'], { cwd: PROJECT_ROOT, env, stdio: 'inherit' });
   server.kill(); await new Promise(resolve => server.once('exit', resolve));
-  server = spawn(process.execPath, ['src/server/index.js'], { cwd: PROJECT_ROOT, env, windowsHide: true, stdio: 'ignore' });
+  server = spawn(process.execPath, ['backend/src/server.js'], { cwd: PROJECT_ROOT, env, windowsHide: true, stdio: 'ignore' });
   await ready(env.BASE_URL + '/api/saude');
   await run(process.execPath, ['--test', 'tests/security/seguranca.test.js'], { cwd: PROJECT_ROOT, env, stdio: 'inherit' });
+  await run(process.execPath, ['--test', 'tests/integration/relatorios.test.js'], { cwd: PROJECT_ROOT, env, stdio: 'inherit' });
   const cookie = 'fhdod_token=' + jwt.sign({ id: created.insertId }, process.env.JWT_SECRET, { expiresIn: '10m' });
   const request = async route => { const r = await fetch(env.BASE_URL + route, { headers: { Cookie: cookie } }); assert.equal(r.status, 200); return r.json(); };
   const evaluations = await request('/api/admin/avaliacoes');
@@ -214,6 +215,32 @@ function run(file, args, options) {
     assert.equal(await evaluate('document.querySelectorAll(".chip[aria-pressed=true]").length'),2);
   }
   await evaluate('fila');
+  // Cada alternativa deve ser independente em todos os setores, inclusive "Nada a melhorar".
+  const questionarios = await evaluate('S.map(s=>({id:s.id,perguntas:PQ[s.id].filter(q=>q.tipo==="positivos"||q.tipo==="negativos").map(q=>({id:q.id,opcoes:q.opcoes}))}))');
+  let verificadas = 0;
+  for (const setor of questionarios) {
+    await evaluate('fila');
+    await evaluate('start(S.find(s=>s.id==='+JSON.stringify(setor.id)+'));ans.aceite_privacidade=true;ans.privacidade_versao=PRIVACIDADE_VERSAO');
+    for (const q of setor.perguntas) {
+      await evaluate('st=Q().findIndex(q=>q.id==='+q.id+');render()');
+      for (let i=0;i<q.opcoes.length;i++) {
+        await evaluate('document.querySelectorAll(".chip")['+i+'].click()');
+        assert.deepEqual(await evaluate('ans.r[Q()[st].id]'),q.opcoes.slice(0,i+1));
+      }
+      await evaluate('fila');
+      const [[salva]] = await connection.query('SELECT r.valores FROM respostas r JOIN avaliacoes a ON a.id=r.avaliacao_id WHERE a.token=? AND r.pergunta_id=?', [await evaluate('tok'),q.id]);
+      assert.deepEqual(typeof salva.valores==='string'?JSON.parse(salva.valores):salva.valores,q.opcoes);
+      await evaluate('document.querySelector("#go").click();document.querySelector("#back").click()');
+      assert.equal(await evaluate('document.querySelectorAll(".chip[aria-pressed=true]").length'),q.opcoes.length);
+      for (let i=0;i<q.opcoes.length;i++) {
+        await evaluate('document.querySelectorAll(".chip")['+i+'].click()');
+        assert.deepEqual(await evaluate('ans.r[Q()[st].id]'),q.opcoes.slice(i+1));
+      }
+      await evaluate('fila');
+      verificadas++;
+    }
+  }
+  console.log('Seleção múltipla: '+verificadas+' perguntas verificadas em '+questionarios.length+' setores, com persistência no banco.');
   for (const query of ['geral=1','setor=rx&nome=Raio-X','todos=1']) {
     await cdp('Page.navigate',{url:env.BASE_URL+'/qr.html?'+query+'&base='+encodeURIComponent('https://hospital.example')});
     await until('document.querySelector(".cartaz svg") !== null');

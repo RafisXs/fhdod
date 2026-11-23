@@ -13,7 +13,7 @@ const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:3000';
 const GERENTE = { email: process.env.TEST_GERENTE_EMAIL, senha: process.env.TEST_GERENTE_SENHA };
 const unico = Date.now();
-const { VERSAO_PRIVACIDADE } = require('../../src/server/lib/privacidade');
+const { VERSAO_PRIVACIDADE } = require('../../backend/src/utils/privacidade');
 
 async function req(method, caminho, corpo, cookie) {
   if (method === 'POST' && (caminho === '/api/avaliacoes' || caminho === '/api/avaliacoes/iniciar' || /\/concluir$/.test(caminho)) && corpo) {
@@ -33,6 +33,8 @@ const senhasAtuais = new Map();
 test('Respostas da API não ficam em cache e corpos excessivos retornam 413', async () => {
   const health = await req('GET', '/api/saude');
   assert.equal(health.headers.get('cache-control'), 'no-store');
+  assert.match(health.headers.get('x-request-id'), /^[0-9a-f-]{36}$/);
+  assert.equal((await req('GET', '/api/vivo')).json.ok, true);
   const oversized = await req('POST', '/api/avaliacoes', { texto: 'x'.repeat(22000) });
   assert.equal(oversized.status, 413);
   assert.equal(oversized.json.erro, 'Dados excedem o tamanho permitido.');
@@ -98,8 +100,25 @@ test('2b. A página do cartaz com QR Code e a biblioteca local são servidas (se
   assert.equal(pagina.status, 200);
   const html = await pagina.text();
   assert.ok(!/https?:\/\/(?!localhost)/.test(html.replace(/https:\/\/avaliacao\.seuhospital\.com\.br/g, '')), 'o cartaz não carrega nada de sites externos');
-  assert.equal((await fetch(BASE + '/js/vendor/qrcode.js')).status, 200);
-  assert.equal((await fetch(BASE + '/js/qr.js')).status, 200);
+  assert.equal((await fetch(BASE + '/src/assets/vendor/qrcode.js')).status, 200);
+  assert.equal((await fetch(BASE + '/src/pages/qr.js')).status, 200);
+});
+
+test('Estrutura: telas e seus arquivos carregam, e o backend não é público', async () => {
+  for (const tela of ['/', '/index.html', '/admin', '/admin.html', '/qr.html', '/tv.html', '/privacidade.html']) {
+    const pagina = await fetch(BASE + tela);
+    assert.equal(pagina.status, 200, tela);
+    const html = await pagina.text();
+    const recursos = [...html.matchAll(/<(?:script|link|img)\b[^>]*?(?:src|href)="([^"]+)"/g)].map(m => m[1]);
+    for (const recurso of recursos) {
+      const url = new URL(recurso, BASE + tela);
+      assert.equal(url.origin, new URL(BASE).origin);
+      assert.equal((await fetch(url)).status, 200, tela + ': ' + recurso);
+    }
+  }
+  for (const privado of ['/.env', '/backend/.env', '/backend/package.json', '/package.json', '/database/schema.sql']) {
+    assert.equal((await fetch(BASE + privado)).status, 404, privado);
+  }
 });
 
 test('3. Pedido que altera dados sem o cabeçalho de segurança é barrado', async () => {

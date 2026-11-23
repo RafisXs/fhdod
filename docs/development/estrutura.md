@@ -1,60 +1,45 @@
 # Organização do projeto
 
-O repositório contém uma única aplicação Node.js. Cada pasta tem uma responsabilidade; não há cópia separada de frontend ou backend fora de `src/`.
+O projeto está dividido em dois npm workspaces: `frontend/` e `backend/`. Instale as dependências uma vez na raiz com `npm ci`; `npm start` inicia o Express e disponibiliza as telas e a API na mesma origem. O frontend continua em HTML, CSS e JavaScript e utiliza as pastas correspondentes ao modelo de organização adotado.
+
+## Frontend
 
 | Caminho | Responsabilidade |
 | --- | --- |
-| `src/server/` | Inicialização Express, configuração e conexão MySQL. |
-| `src/server/routes/` | Endpoints públicos e administrativos. |
-| `src/server/lib/` | Regras de avaliação, autenticação, privacidade, auditoria e migrações. |
-| `src/public/` | HTML das telas; os URLs servidos continuam em `/`, `/admin`, `/qr.html` e `/tv.html`. |
-| `src/public/css/` | Estilos da pesquisa, painel, TV, cartazes e privacidade. |
-| `src/public/js/` | Scripts das telas e componentes compartilhados. |
-| `src/public/js/vendor/` | Biblioteca QR de terceiros, com licença preservada. |
-| `src/public/img/` | Logo e ícone institucional. |
-| `database/` | Schema SQL inicial; não contém dumps de dados reais. |
-| `scripts/database/` | Comandos administrativos de migração e criação do gerente. |
-| `scripts/checks/` | Verificações de desenvolvimento. |
-| `tests/api/` | Testes HTTP de funcionalidades e validações. |
-| `tests/security/` | Testes de contas, sessões e auditoria. |
-| `tests/e2e/` | Orquestração do banco temporário, servidor, API, segurança e navegador. |
-| `docs/` | Guias, referência, modelos, pendências e relatórios. |
-| `verification/screenshots/` | Capturas geradas pelos testes; ignoradas pelo Git. |
-| `verification/browser/` | Perfis de navegador usados na validação; ignorados. |
-| `verification/archive/` | Evidências locais antigas preservadas; ignoradas. |
+| `frontend/public/images/` e `public/icons/` | Imagens e ícones públicos. |
+| `frontend/src/assets/styles/` | Estilos da pesquisa, painel, privacidade, TV e QR. |
+| `frontend/src/assets/vendor/` | Biblioteca QR com licença original. |
+| `frontend/src/components/common/` | Componentes visuais compartilhados. |
+| `frontend/src/components/ui/` | Campos e seletores reutilizados nas telas. |
+| `frontend/src/components/layout/` | Renderização, foco e rodapé compartilhados. |
+| `frontend/src/pages/` | HTML e comportamento de cada tela. |
+| `frontend/src/services/api.js` | Requisições HTTP, cookies e tratamento de erros. |
+| `frontend/src/utils/` | Formatação e escape de texto. |
+| `frontend/src/main.js` | Inicialização da pesquisa. |
 
-## Caminhos alterados nesta organização
+Os scripts são carregados em ordem pelos HTMLs. O Express serve apenas os recursos de frontend declarados em `backend/src/routes/pages.js`. As telas permanecem em `/`, `/admin`, `/qr.html`, `/tv.html` e `/privacidade.html`.
 
-| Antes | Agora |
+## Backend
+
+| Caminho | Responsabilidade |
 | --- | --- |
-| `server/` | `src/server/` |
-| `public/` | `src/public/` |
-| `server/scripts/migrar.js` | `scripts/database/migrar.js` |
-| `server/scripts/criar-gerente.js` | `scripts/database/criar-gerente.js` |
-| `server/scripts/verificar-sintaxe.js` | `scripts/checks/verificar-sintaxe.js` |
-| `tests/api.test.js` | `tests/api/api.test.js` |
-| `tests/seguranca.test.js` | `tests/security/seguranca.test.js` |
-| `tests/painel.test.cjs` | `tests/e2e/painel.test.cjs` |
-| `docs/implantacao.md` | `docs/guides/implantacao.md` |
-| `docs/pendencias.md` | `docs/development/pendencias.md` |
-| `RELATORIO_REVISAO.md` | `docs/reports/2026-10-30-revisao.md` |
-| `docs/testes-seguranca.md` | `docs/reports/2026-10-29-seguranca.md` |
-| `docs/VISTORIA_2026-11-05.md` | `docs/reports/2026-11-05-vistoria.md` |
-| README extenso | README de entrada e `docs/reference/manual-detalhado.md` |
+| `backend/src/config/` | Carregamento do ambiente e pool MySQL. |
+| `backend/src/routes/` | Endpoints e associação de controllers e middleware. |
+| `backend/src/controllers/` | Leitura de pedidos e construção das respostas HTTP. |
+| `backend/src/middleware/` | Cookies, permissões, proteção de requisições e limites. |
+| `backend/src/services/` | Regras de avaliação, auditoria, senhas e migrações. |
+| `backend/src/models/` | Leitura e paginação das avaliações, respeitando o perfil. |
+| `backend/src/validations/` | Validação do ambiente, datas, notas e alternativas. |
+| `backend/src/utils/` | Constantes, privacidade e funções de apoio. |
+| `backend/src/app.js` | Configuração do Express, segurança e rotas. |
+| `backend/src/server.js` | Validação do ambiente, conexão, inicialização e encerramento. |
 
-Os comandos npm preservam os nomes. O serviço systemd aponta agora para `/opt/fhdod/src/server/index.js`. As URLs públicas e a localização de `database/schema.sql` permanecem iguais.
+A configuração local fica em `backend/.env`, ignorada pelo Git. `config/env.js` também aceita os caminhos antigos como fallback; variáveis já fornecidas ao processo têm prioridade. Segredos pertencem ao backend. Não é necessário arquivo de ambiente público no frontend.
 
-## Configuração e workspace local
+## Ferramentas e operação
 
-O `.env` real fica na raiz do repositório, ao lado de `.env.example`; suas credenciais não entram no Git. `src/server/config.js` resolve esse arquivo a partir da própria localização, sem depender da pasta do terminal, e mantém o fallback antigo para a pasta externa por compatibilidade.
+O schema permanece em `database/schema.sql`; comandos administrativos em `scripts/database/`; testes em `tests/`; guias e modelos em `docs/`. Relatórios históricos preservam os caminhos vigentes na data em que foram escritos. O serviço systemd utiliza `/opt/fhdod/backend/src/server.js`.
 
-Na cópia de trabalho existente, `app/` é a raiz Git. A pasta externa possui apenas um README de orientação e os atalhos npm, além do `.gitignore` do workspace. As evidências que estavam soltas na pasta externa foram preservadas em `app/verification/archive/workspace/`, e o antigo perfil de navegador foi movido para `app/verification/browser/legacy-profile/`. O `.env` que ficava fora da aplicação foi movido para `app/.env`.
+Na cópia local, `app/` é a raiz do repositório. A pasta externa mantém os atalhos npm. Evidências, capturas e perfis temporários ficam em `verification/`, fora do Git. O lockfile único na raiz controla as dependências dos dois workspaces.
 
-Em um clone do GitHub, execute os comandos na raiz clonada: não crie outra pasta `app/` nem copie o projeto para dentro dele mesmo. A suíte E2E resolve a raiz pelo arquivo do teste e funciona sem depender de uma pasta externa com nome específico.
-
-## Critérios de organização no Git
-
-- Versionar código-fonte, schema inicial, testes, documentação, modelos sem segredos e o lockfile.
-- Manter credenciais, dumps, logs, capturas e dependências instaladas fora do versionamento.
-- Preservar relatórios anteriores por data e registrar novos resultados em arquivos próprios.
-- Manter links relativos para que README e documentação funcionem no GitHub e em clones locais.
+Pastas específicas de React, como hooks e context, serão introduzidas se houver uma migração para esse framework. Uploads também exigem uma funcionalidade correspondente antes de criar armazenamento no servidor.

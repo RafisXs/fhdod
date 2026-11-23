@@ -1,9 +1,9 @@
 // Cria o gerente (ou redefine a senha dele):  npm run criar-gerente
-require('../../src/server/config');
+require('../../backend/src/config/env');
 const readline = require('readline');
 const bcrypt = require('bcryptjs');
-const { pool } = require('../../src/server/db');
-const { senhaValida, transacao } = require('../../src/server/lib/seguranca');
+const { pool } = require('../../backend/src/config/db');
+const { senhaValida, transacao } = require('../../backend/src/services/seguranca');
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 // Guarda as linhas digitadas (funciona digitando no terminal ou colando/encadeando várias linhas)
