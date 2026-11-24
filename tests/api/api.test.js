@@ -390,7 +390,10 @@ test('11g. Pesquisa com perguntas novas, resultado por pergunta e setor desativa
   // falta uma pergunta de nota nova: não conclui
   assert.equal((await req('POST', `/api/avaliacoes/${t}/concluir`, { ...base, respostas: resp.slice(1) })).status, 400, 'todas as perguntas de nota são obrigatórias');
   assert.equal((await req('POST', `/api/avaliacoes/${t}/concluir`, { ...base, respostas: resp })).status, 201);
-  const rp = (await req('GET', `/api/admin/resultado-perguntas?s=${novoSetor}&p=30`, null, gerente)).json.itens.filter((x) => x.setor === novoSetor);
+  const resultado = await req('GET', `/api/admin/resultado-perguntas?s=${novoSetor}&p=30`, null, gerente);
+  assert.equal(resultado.status, 200, 'resultado por pergunta deve responder sem erro SQL');
+  assert.ok(Array.isArray(resultado.json && resultado.json.itens), 'resultado por pergunta deve devolver uma lista');
+  const rp = resultado.json.itens.filter((x) => x.setor === novoSetor);
   assert.equal(rp.length, qs.length, 'uma linha por pergunta respondida');
   assert.ok(rp.some((x) => x.tipo === 'escala' && x.media === 4 && x.total === 1));
   assert.ok(rp.some((x) => x.tipo === 'nps' && x.media === 9 && x.nps === 100));

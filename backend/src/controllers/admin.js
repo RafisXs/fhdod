@@ -260,14 +260,14 @@ exports.resultados = async (req, res) => {
     `SELECT a.setor_id AS setor, r.pergunta_texto COLLATE utf8mb4_bin AS texto, r.tipo,
             COALESCE(MAX(pe.ordem), 999) AS ordem, COUNT(*) AS total,
             SUM(r.valor_num) AS soma, SUM(r.valor_num >= 4) AS bons,
-            SUM(r.valor_num >= 9) AS prom, SUM(r.valor_num <= 6) AS de
+            SUM(r.valor_num >= 9) AS prom, SUM(r.valor_num <= 6) AS det
        FROM respostas r JOIN avaliacoes a ON a.id = r.avaliacao_id LEFT JOIN perguntas pe ON pe.id = r.pergunta_id
       WHERE ${w.join(' AND ')} GROUP BY a.setor_id, r.pergunta_texto COLLATE utf8mb4_bin, r.tipo`, p);
   const [opcoes] = await pool.query(
     `SELECT a.setor_id AS setor, r.pergunta_texto COLLATE utf8mb4_bin AS texto, r.tipo,
             jt.opcao COLLATE utf8mb4_bin AS opcao, COUNT(*) AS total
        FROM respostas r JOIN avaliacoes a ON a.id = r.avaliacao_id
-       JOIN JSON_TABLE(COALESCE(r.valores, JSON_ARRAY()), '$[*]' COLUMNS (opcao VARCHAR(255) PATH '$')) j
+       JOIN JSON_TABLE(COALESCE(r.valores, JSON_ARRAY()), '$[*]' COLUMNS (opcao VARCHAR(255) PATH '$')) jt
       WHERE ${w.join(' AND ')} AND r.tipo IN ('positivos','negativos')
       GROUP BY a.setor_id, r.pergunta_texto COLLATE utf8mb4_bin, r.tipo, jt.opcao COLLATE utf8mb4_bin`, p);
   const [setores] = await pool.query('SELECT id, ordem FROM setores');

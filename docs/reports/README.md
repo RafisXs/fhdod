@@ -2,6 +2,7 @@
 
 | Data | Relatório |
 | --- | --- |
+| 24/11/2026 | [Avaliação acadêmica pelos cinco critérios](2026-11-24-avaliacao-academica.md). |
 | 10/11/2026 | [Preparação técnica para produção e testes de volume](2026-11-10-producao.md). |
 | 05/11/2026 | [Vistoria do código e correções](2026-11-05-vistoria.md). |
 | 30/10/2026 | [Revisão de pré-lançamento](2026-10-30-revisao.md). |

@@ -104,7 +104,7 @@ No PowerShell, use `npm.cmd` se a política local bloquear `npm.ps1`. No workspa
 | TV de indicadores | `http://localhost:3000/tv.html` |
 | Aviso de privacidade | `http://localhost:3000/privacidade.html` |
 
-Use a porta configurada em `PORT`, caso seja diferente de 3000. Os caminhos públicos permanecem os mesmos após a organização em `src/`.
+Use a porta configurada em `PORT`, caso seja diferente de 3000. Os caminhos públicos permanecem os mesmos após a separação entre `frontend/` e `backend/`.
 
 ## Funcionalidades e perfis
 
@@ -141,7 +141,7 @@ A suíte completa cria e remove um banco `fhdod_verify_<identificador>`, inicia 
 
 O Chrome é localizado no caminho padrão do Windows. Para outro caminho, defina `CHROME_PATH` no ambiente ou no `.env`. O perfil de teste usa `--no-sandbox` apenas na execução automatizada e não deve ser usado para navegação comum.
 
-Validação de 10/11/2026: **29 testes da API, 10 verificações de segurança, 7 de integração/volume e 4 de configuração aprovados**, além dos fluxos de navegador. O cenário de volume utiliza 20.001 avaliações e 220.011 respostas em banco descartável. A [preparação para produção](docs/guides/entrada-em-producao.md) descreve as melhorias e os critérios de liberação.
+Validação de 24/11/2026: **30 testes da API, 10 verificações de segurança, 7 de integração/volume e 5 testes unitários aprovados**, além dos fluxos de navegador. O cenário de volume utiliza 20.001 avaliações e 220.011 respostas em banco descartável. A [preparação para produção](docs/guides/entrada-em-producao.md) descreve as melhorias e os critérios de liberação.
 
 O workflow em `.github/workflows/validacao.yml` executa sintaxe, testes, auditoria npm, MySQL isolado e Chrome a cada push nas branches configuradas e em pull requests. O Dependabot está configurado para revisar npm e Actions semanalmente; sua ativação depende da configuração estar na branch padrão do GitHub.
 
@@ -149,11 +149,16 @@ O workflow em `.github/workflows/validacao.yml` executa sintaxe, testes, auditor
 
 - [Índice da documentação](docs/README.md).
 - [Manual detalhado: funcionalidades, configuração, API e indicadores](docs/reference/manual-detalhado.md).
+- [Briefing, públicos e rastreabilidade dos requisitos](docs/reference/briefing-e-requisitos.md).
+- [Decisões arquiteturais e justificativa do SGBD/backend](docs/reference/decisoes-arquiteturais.md).
+- [Plano de negócio, precificação e estratégia de escala](docs/reference/plano-de-negocio.md).
+- [Oficialização da parceria e isenção da FHDOD](docs/reference/oficializacao-parceria-fhdod.md).
 - [Implantação, HTTPS, serviço e backup](docs/guides/implantacao.md).
 - [Preparação para uso institucional e critérios de liberação](docs/guides/entrada-em-producao.md).
 - [Estrutura, responsabilidades das pastas e arquivos movidos](docs/development/estrutura.md).
 - [Pendências e validações institucionais](docs/development/pendencias.md).
 - [Relatórios de revisão e testes](docs/reports/README.md).
+- [Avaliação acadêmica pelos cinco critérios](docs/reports/2026-11-24-avaliacao-academica.md).
 
 Os antigos cortes em 5.000 avaliações no painel, 20.000 no Excel e 200.000 respostas por pergunta foram removidos. O painel carrega páginas de 500 registros, o Excel é escrito em lotes e o resultado por pergunta é agregado no MySQL. Parte dos gráficos ainda usa a base completa no navegador, então memória e tempo de carregamento devem ser homologados para o volume esperado. HTTPS, domínio real, restauração de backup e leitura física dos cartazes precisam ser validados no destino. MFA ainda está pendente. Texto de privacidade e política de retenção dependem da aprovação dos responsáveis do hospital.
 
