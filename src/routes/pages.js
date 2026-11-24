@@ -1,6 +1,6 @@
 const path = require('node:path');
 const express = require('express');
-const frontend = path.resolve(__dirname, '../../../frontend');
+const frontend = path.resolve(__dirname, '../../frontend');
 
 module.exports = app => {
   app.get('/', (req, res) => res.sendFile(path.join(frontend, 'index.html')));

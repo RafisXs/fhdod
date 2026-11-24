@@ -1,5 +1,5 @@
 const express = require('express');
-const c = require('../controllers/public');
+const c = require('../controller/public');
 const { exigirLogin } = require('../middleware/auth');
 const { limite, aoValidar } = require('../middleware/limites');
 

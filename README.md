@@ -4,55 +4,45 @@ Sistema de pesquisa de satisfação da Fundação Hospitalar Dr. Oswaldo Diesel,
 
 Backend em Node.js/Express e MySQL; frontend em HTML, CSS e JavaScript, servido pela própria aplicação, sem etapa de build.
 
+## Links do projeto
+
+- [Aplicação web](https://fhdod.onrender.com/).
+- [Código-fonte no GitHub](https://github.com/RafisXs/fhdod).
+- [Design no Figma](https://www.figma.com/design/q8ar804yb4FYO5lRQFgksf/Sem-t%C3%ADtulo?node-id=0-1).
+
 ## Estrutura do projeto
 
 ```text
 fhdod/
-├── frontend/
-│   ├── public/
-│   │   ├── images/                 # Imagens institucionais
-│   │   └── icons/                  # Ícones públicos
-│   ├── src/
-│   │   ├── assets/{styles,vendor}/ # Estilos e biblioteca QR
-│   │   ├── components/
-│   │   │   ├── common/             # Componentes visuais comuns
-│   │   │   ├── ui/                 # Campos e seletores
-│   │   │   └── layout/             # Estrutura compartilhada
-│   │   ├── pages/                  # HTML e lógica de cada tela
-│   │   ├── hooks/                  # Comportamentos reutilizáveis
-│   │   ├── context/                # Estado compartilhado, sem React
-│   │   ├── store/                  # Estado da interface
-│   │   ├── routes/                 # Mapa conceitual das páginas
-│   │   ├── App.js                  # Composição do frontend nativo
-│   │   ├── services/api.js         # Comunicação HTTP
-│   │   ├── utils/                 # Funções auxiliares
-│   │   └── main.js                # Entrada da pesquisa
+├── src/                         # Backend Node.js/Express
+│   ├── config/                  # Carregamento do ambiente
+│   ├── controller/              # Tratamento das requisições HTTP
+│   ├── db/                      # Pool MySQL e migrações
+│   ├── middleware/              # Autenticação, permissões e limites
+│   ├── model/                   # Consultas de avaliações
+│   ├── routes/                  # Rotas da API e páginas públicas
+│   ├── services/                # Regras de negócio e segurança
+│   ├── validations/             # Validação do ambiente e respostas
+│   ├── utils/                   # Constantes e funções auxiliares
+│   ├── uploads/                 # Reserva privada para uploads
+│   ├── app.js                   # Configuração do Express
+│   └── server.js                # Inicialização e encerramento
+├── frontend/                    # Interface HTML, CSS e JavaScript
+│   ├── public/                  # Imagens e ícones
+│   ├── src/                     # Páginas, componentes e estilos
 │   ├── index.html
 │   └── package.json
-├── backend/
-│   ├── src/
-│   │   ├── config/                # Ambiente e conexão MySQL
-│   │   ├── controllers/           # Tratamento das requisições
-│   │   ├── models/                # Consultas de avaliações
-│   │   ├── routes/                # Rotas e proteção de acesso
-│   │   ├── middleware/            # Autenticação e limites
-│   │   ├── services/              # Regras, segurança e migrações
-│   │   ├── utils/                 # Constantes e auxiliares
-│   │   ├── validations/           # Validação de ambiente e respostas
-│   │   ├── uploads/                # Reserva para uploads controlados
-│   │   ├── app.js                 # Configuração do Express
-│   │   └── server.js              # Inicialização e encerramento
-│   ├── .env.example
-│   └── package.json
-├── database/schema.sql
-├── scripts/
-├── tests/
-├── docs/
-├── package.json                   # Comandos e npm workspaces
-└── package-lock.json              # Dependências dos dois pacotes
+├── certs/                       # Certificado CA público do MySQL
+├── database/schema.sql          # Esquema inicial
+├── scripts/                     # Administração e verificações
+├── tests/                       # Unidade, API, segurança e navegador
+├── docs/                        # Documentação e implantação
+├── .env.example                 # Modelo sem credenciais reais
+├── package.json                 # Comandos e dependências do servidor
+└── package-lock.json            # Versões das dependências
 ```
 
-Na cópia de trabalho que contém uma pasta `app/`, esta árvore fica dentro de `app/`, onde está o repositório Git. No GitHub, `frontend/`, `backend/`, `database/`, `scripts/`, `tests/` e `docs/` aparecem diretamente na raiz. A pasta externa é apenas um workspace com atalhos npm.
+O repositório tem o backend diretamente em `src/` e a interface em `frontend/`. Os comandos npm são executados na raiz.
 
 Arquivos locais gerados ficam em `verification/`: capturas em `screenshots/`, perfis temporários em `browser/` e evidências antigas em `archive/`. Essa pasta, o `.env` real, backups e `node_modules/` são ignorados pelo Git.
 
@@ -66,16 +56,16 @@ Dentro da raiz do repositório:
 npm ci
 ```
 
-Crie `backend/.env` a partir de [backend/.env.example](backend/.env.example):
+Crie `.env` a partir de [.env.example](.env.example):
 
 ```powershell
 # PowerShell
-Copy-Item backend/.env.example backend/.env
+Copy-Item .env.example .env
 ```
 
 ```sh
 # Linux/macOS
-cp backend/.env.example backend/.env
+cp .env.example .env
 ```
 
 Preencha `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` e `DB_PASSWORD` com os dados do MySQL. Defina `JWT_SECRET` com um segredo aleatório de pelo menos 24 caracteres; o texto do exemplo não é aceito. Mantenha `COOKIE_SECURE=false` apenas no desenvolvimento por HTTP.
@@ -97,7 +87,7 @@ npm start
 
 No primeiro acesso, a conta precisa trocar a senha provisória. Em instalações existentes, utilize `npm run migrar` para atualizar o banco. Em desenvolvimento, o servidor também verifica migrações ao iniciar; em produção elas ficam desabilitadas por padrão para permitir conta de operação sem permissões DDL. Faça backup antes de atualizar.
 
-No PowerShell, use `npm.cmd` se a política local bloquear `npm.ps1`. No workspace que contém `app/`, execute os mesmos comandos de uso pelos atalhos da pasta externa; para instalar, utilize `npm.cmd --prefix app ci`.
+No PowerShell, use `npm.cmd` se a política local bloquear `npm.ps1`. Execute os comandos na raiz do repositório.
 
 ## Acesso às telas
 
@@ -110,7 +100,7 @@ No PowerShell, use `npm.cmd` se a política local bloquear `npm.ps1`. No workspa
 | TV de indicadores | `http://localhost:3000/tv.html` |
 | Aviso de privacidade | `http://localhost:3000/privacidade.html` |
 
-Use a porta configurada em `PORT`, caso seja diferente de 3000. Os caminhos públicos permanecem os mesmos após a separação entre `frontend/` e `backend/`.
+Use a porta configurada em `PORT`, caso seja diferente de 3000. Os caminhos públicos permanecem os mesmos após a separação entre `frontend/` e `src/`.
 
 ## Funcionalidades e perfis
 

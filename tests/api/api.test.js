@@ -13,7 +13,7 @@ const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:3000';
 const GERENTE = { email: process.env.TEST_GERENTE_EMAIL, senha: process.env.TEST_GERENTE_SENHA };
 const unico = Date.now();
-const { VERSAO_PRIVACIDADE } = require('../../backend/src/utils/privacidade');
+const { VERSAO_PRIVACIDADE } = require('../../src/utils/privacidade');
 
 async function req(method, caminho, corpo, cookie) {
   if (method === 'POST' && (caminho === '/api/avaliacoes' || caminho === '/api/avaliacoes/iniciar' || /\/concluir$/.test(caminho)) && corpo) {
@@ -116,7 +116,7 @@ test('Estrutura: telas e seus arquivos carregam, e o backend não é público', 
       assert.equal((await fetch(url)).status, 200, tela + ': ' + recurso);
     }
   }
-  for (const privado of ['/.env', '/backend/.env', '/backend/package.json', '/package.json', '/database/schema.sql']) {
+  for (const privado of ['/.env', '/src/server.js', '/src/config/env.js', '/src/db/index.js', '/src/controller/admin.js', '/src/model/avaliacoes.js', '/certs/ca.pem', '/package.json', '/database/schema.sql']) {
     assert.equal((await fetch(BASE + privado)).status, 404, privado);
   }
 });

@@ -42,7 +42,7 @@ O JSON foi limitado às listas variáveis de alternativas e respostas de múltip
 
 ## Monólito modular
 
-**Decisão:** uma aplicação implantável, separada internamente em `routes`, `controllers`, `middleware`, `services`, `models`, `validations`, `config` e `utils`.
+**Decisão:** uma aplicação implantável, separada internamente em `routes`, `controller`, `middleware`, `services`, `model`, `validations`, `config`, `db` e `utils`.
 
 Essa escolha reduz custo operacional, mantém autenticação e transações na mesma unidade e é suficiente para uma implantação por hospital. A modularização permite testar e evoluir responsabilidades sem introduzir a complexidade de rede, observabilidade e consistência distribuída dos microsserviços.
 

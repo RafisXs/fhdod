@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs');
-const { pool } = require('../config/db');
+const { pool } = require('../db');
 
 const MAX_TENTATIVAS = 5;
 const BLOQUEIO_MINUTOS = 15;

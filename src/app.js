@@ -3,7 +3,7 @@ const { randomUUID } = require('node:crypto');
 const express = require('express');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
-const { explicarErro } = require('./config/db');
+const { explicarErro } = require('./db');
 const { exigirCabecalho } = require('./middleware/auth');
 
 const app = express();

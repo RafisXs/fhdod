@@ -1,5 +1,5 @@
 const express = require('express');
-const c = require('../controllers/admin');
+const c = require('../controller/admin');
 const { exigirLogin, exigirPapel } = require('../middleware/auth');
 const equipe = exigirPapel('gerente', 'admin');
 

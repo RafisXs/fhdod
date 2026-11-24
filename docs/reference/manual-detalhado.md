@@ -52,7 +52,7 @@ Evidências da rodada: [relatório de testes de segurança](../reports/2026-10-2
 - Link direto por setor, para gerar QR Code: `/?setor=rx`.
 - Layout para celular, navegação por teclado e foco visível.
 - **Privacidade (LGPD):** uma caixa compacta antes da primeira pergunta resume a finalidade e permite ler o [Aviso de Privacidade](../../frontend/src/pages/privacidade.html). O aceite começa desmarcado e libera o início da pesquisa. O telefone continua opcional, com autorização separada. O aviso permanece acessível no rodapé; a última etapa apenas relembra o aceite, sem exigir nova marcação.
-- **Evidência no servidor:** a primeira resposta salva registra a versão do aviso e a data/hora UTC do aceite (`privacidade_versao`, `privacidade_aceita_em`). A API exige aceite booleano explícito e a versão atual para iniciar, enviar ou concluir avaliações. Registros anteriores permanecem com campos nulos, sem atribuir aceite retroativo. A versão atual é definida em `backend/src/utils/privacidade.js` e informada por `/api/perguntas`.
+- **Evidência no servidor:** a primeira resposta salva registra a versão do aviso e a data/hora UTC do aceite (`privacidade_versao`, `privacidade_aceita_em`). A API exige aceite booleano explícito e a versão atual para iniciar, enviar ou concluir avaliações. Registros anteriores permanecem com campos nulos, sem atribuir aceite retroativo. A versão atual é definida em `src/utils/privacidade.js` e informada por `/api/perguntas`.
 
 **Área restrita (equipe) - `/admin`**
 
@@ -135,11 +135,11 @@ Pré-requisitos: **Node.js 18 ou superior** (com npm) e **MySQL Server 8.0 ou su
    npm install
    ```
 
-3. Crie o arquivo `backend/.env` a partir do modelo e preencha com os seus valores (veja a próxima seção):
+3. Crie o arquivo `.env` a partir do modelo e preencha com os seus valores (veja a próxima seção):
 
    ```
-   copy backend\.env.example backend\.env        (Windows)
-   cp backend/.env.example backend/.env          (Linux e macOS)
+   copy .env.example .env        (Windows)
+   cp .env.example .env          (Linux e macOS)
    ```
 
 4. Crie o banco e as tabelas. No **MySQL Workbench**: abra a conexão, menu *File > Open SQL Script*, escolha `database/schema.sql` e clique no raio (Execute). Ou pelo terminal:
@@ -160,7 +160,7 @@ Pré-requisitos: **Node.js 18 ou superior** (com npm) e **MySQL Server 8.0 ou su
 
 O arquivo `.env` guarda as credenciais e **não vai para o GitHub** (está no `.gitignore`). Nunca coloque senhas no código-fonte.
 
-O módulo `backend/src/config/env.js` procura primeiro `app/.env` e depois o `.env` da pasta principal. Para uma mesma variável, o valor de `app/.env` tem prioridade sobre o arquivo da pasta principal; variáveis já definidas no ambiente do processo são preservadas. Isso permite iniciar o servidor e os comandos de manutenção sem depender da pasta atual do terminal. Evite manter valores contraditórios nos dois arquivos.
+O módulo `src/config/env.js` carrega o `.env` da raiz do repositório, preservando variáveis já definidas no processo. A resolução independe da pasta atual do terminal. Caminhos relativos de `DB_SSL_CA_FILE` também partem da raiz do repositório.
 
 | Variável | Para que serve | Exemplo |
 | --- | --- | --- |
@@ -203,7 +203,7 @@ A migração de segurança acrescenta `trocar_senha`, `versao_sessao`, `tentativ
 npm start
 ```
 
-No PowerShell do Windows, utilize `npm.cmd start` se a política de execução bloquear `npm.ps1`. Não é necessário alterar a política do sistema. Os comandos `start`, `dev`, `migrar`, `criar-gerente`, `test` e `test:painel` também podem ser executados na pasta principal, que os encaminha para `app/`. Para instalar as dependências a partir dessa pasta, execute `npm.cmd --prefix app install`.
+No PowerShell do Windows, utilize `npm.cmd start` se a política de execução bloquear `npm.ps1`. Execute os comandos na raiz do repositório, onde ficam `package.json` e `package-lock.json`; instale as dependências com `npm.cmd ci`.
 
 Os endereços abaixo exemplificam a porta padrão `3000`. A porta efetiva é a definida em `PORT`; na configuração local verificada em 29/10/2026, a aplicação utilizava `http://localhost:3002`, com administração em `http://localhost:3002/admin`. Consulte a mensagem de inicialização para confirmar o endereço da sua instalação. Após mudanças de CSS ou JavaScript, atualize o navegador com **Ctrl + F5**.
 
@@ -494,4 +494,4 @@ Ao interpretar ou comparar resultados, considere:
 - **Diferenças entre indicadores:** nota média, satisfação, NPS e atenção medem aspectos distintos e possuem denominadores ou regras diferentes. Não devem ser tratados como medidas equivalentes.
 - **Arredondamento:** médias e percentuais exibidos têm precisão menor que os valores usados nos cálculos. Não recalcule o NPS subtraindo apenas percentuais já arredondados quando houver acesso às contagens originais.
 
-Os principais pontos do código para auditoria são `frontend/src/pages/admin.js` (filtros, indicadores e gráficos), `backend/src/services/avaliacoes.js` (resumo e leitura das respostas), `backend/src/utils/util.js` (limites e perguntas padrão), `backend/src/controllers/admin.js` (resultado por pergunta e Excel) e `backend/src/controllers/public.js` (indicadores agregados da TV).
+Os principais pontos do código para auditoria são `frontend/src/pages/admin.js` (filtros, indicadores e gráficos), `src/services/avaliacoes.js` (resumo e leitura das respostas), `src/utils/util.js` (limites e perguntas padrão), `src/controller/admin.js` (resultado por pergunta e Excel) e `src/controller/public.js` (indicadores agregados da TV).

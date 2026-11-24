@@ -1,4 +1,4 @@
-const { pool } = require('../config/db');
+const { pool } = require('../db');
 const { asJson } = require('../utils/util');
 const { escopo } = require('../middleware/auth');
 

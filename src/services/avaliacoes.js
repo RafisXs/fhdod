@@ -1,6 +1,6 @@
 // Regras de validação e gravação de uma avaliação enviada pelo paciente.
 const crypto = require('crypto');
-const { pool } = require('../config/db');
+const { pool } = require('../db');
 const { asJson, inteiro, TURNOS, RESPONDENTES, TIPOS, ABAIXO_MEDIA, NPS_MAX_DETRATOR } = require('../utils/util');
 const { VERSAO_PRIVACIDADE, aceiteValido } = require('../utils/privacidade');
 

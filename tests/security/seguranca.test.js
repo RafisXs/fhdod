@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-require('../../backend/src/config/env');
+require('../../src/config/env');
 if (!/^fhdod_verify_\d+$/.test(process.env.DB_NAME || '')) throw new Error('Execute pelo test:painel em banco temporário exclusivo.');
-const { pool } = require('../../backend/src/config/db');
+const { pool } = require('../../src/db');
 const BASE = process.env.BASE_URL;
 const provisoria = 'Provisoria-teste-123';
 const pessoal = 'Pessoal-teste-456';

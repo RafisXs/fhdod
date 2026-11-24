@@ -1,6 +1,6 @@
 // Login com cookie seguro (JWT) e controle de perfis (gerente / admin / visualizador).
 const jwt = require('jsonwebtoken');
-const { pool } = require('../config/db');
+const { pool } = require('../db');
 const { erro } = require('../utils/util');
 
 const COOKIE = 'fhdod_token';

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { validarAmbiente } = require('../../backend/src/validations/ambiente');
+const { validarAmbiente } = require('../../src/validations/ambiente');
 
 const producao = { NODE_ENV: 'production', COOKIE_SECURE: 'true', JWT_SECRET: 'a'.repeat(64), DB_USER: 'fhdod_app', DB_PASSWORD: 'somente-teste', DB_NAME: 'teste', PORT: '3000', TRUST_PROXY: '1' };
 

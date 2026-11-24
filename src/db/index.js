@@ -1,7 +1,7 @@
 // Conexão com o MySQL (pool). As credenciais vêm do arquivo .env.
 const fs = require('node:fs');
 const path = require('node:path');
-require('./env');
+require('../config/env');
 const mysql = require('mysql2/promise');
 
 function obterSsl() {

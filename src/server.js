@@ -7,9 +7,9 @@ if (errosAmbiente.length) {
   process.exit(1);
 }
 const app = require('./app');
-const { testarConexao, pool } = require('./config/db');
+const { testarConexao, pool } = require('./db');
 const { segredoValido } = require('./middleware/auth');
-const { migrar } = require('./services/migracao');
+const { migrar } = require('./db/migracao');
 
 const PORT = Number(process.env.PORT || 3002);
 const HOST = process.env.HOST || '0.0.0.0';

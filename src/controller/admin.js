@@ -1,10 +1,10 @@
 // Rotas da área restrita (gerente, administrador de setor e visualizador).
 const bcrypt = require('bcryptjs');
 const ExcelJS = require('exceljs');
-const { pool } = require('../config/db');
+const { pool } = require('../db');
 const { auditar, transacao, senhaValida } = require('../services/seguranca');
 const { exigirLogin, exigirPapel, podeSetor, escopo } = require('../middleware/auth');
-const { carregarAvaliacoes, iterarAvaliacoes } = require('../models/avaliacoes');
+const { carregarAvaliacoes, iterarAvaliacoes } = require('../model/avaliacoes');
 const { asJson, erro, inteiro, TURNOS, TIPOS, STATUS, MAX_PERGUNTAS, PERGUNTAS_PADRAO, celulaSegura } = require('../utils/util');
 
 

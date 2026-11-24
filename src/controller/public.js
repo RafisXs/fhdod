@@ -1,7 +1,7 @@
 // Rotas públicas: pesquisa de satisfação, login e TV Wall.
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-const { pool } = require('../config/db');
+const { pool } = require('../db');
 const { emitirLogin, sairLogin, exigirLogin } = require('../middleware/auth');
 const { auditar, falhaSenha, alterarSenha } = require('../services/seguranca');
 const { VERSAO_PRIVACIDADE } = require('../utils/privacidade');

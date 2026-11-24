@@ -30,4 +30,4 @@ Os testes isolados de API e segurança alteram dados. Não configure `BASE_URL` 
 npm run lint
 ```
 
-Verifica os JavaScript próprios em `backend/src/`, `frontend/src/`, `scripts/` e `tests/`. A biblioteca de terceiros em `vendor/` é preservada e não é modificada por essa verificação.
+Verifica os JavaScript próprios em `src/`, `frontend/src/`, `scripts/` e `tests/`. A biblioteca de terceiros em `vendor/` é preservada e não é modificada por essa verificação.

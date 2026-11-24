@@ -9,4 +9,4 @@ Execute pela raiz do projeto, usando os comandos npm para evitar dependência do
 | `checks/verificar-sintaxe.js` | `npm run lint` | Conferir a sintaxe dos scripts, backend, frontend e testes. |
 | `checks/monitorar.js` | `npm run monitorar -- https://SEU-DOMINIO` | Verificar processo e banco; retorna código 0 ou 1 para integração ao monitor da TI. |
 
-Os scripts de banco usam `backend/src/config/env.js` e as mesmas variáveis da aplicação. Faça backup antes de atualizar um banco existente. A migração não cria o banco inicial: utilize `database/schema.sql` na primeira instalação.
+Os scripts de banco usam `src/config/env.js` e as mesmas variáveis da aplicação. Faça backup antes de atualizar um banco existente. A migração não cria o banco inicial: utilize `database/schema.sql` na primeira instalação.

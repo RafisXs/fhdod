@@ -26,7 +26,7 @@ async function migrar(pool) {
   const feitos = [];
   const c = await pool.getConnection();
   try {
-    await require('./seguranca').migrarSeguranca(c);
+    await require('../services/seguranca').migrarSeguranca(c);
     if (!(await temColuna(c, 'avaliacoes', 'privacidade_versao'))) await c.query('ALTER TABLE avaliacoes ADD COLUMN privacidade_versao VARCHAR(32) NULL');
     if (!(await temColuna(c, 'avaliacoes', 'privacidade_aceita_em'))) await c.query('ALTER TABLE avaliacoes ADD COLUMN privacidade_aceita_em DATETIME NULL');
     // ---- 1) Pergunta de recomendação na 3ª posição (versão antiga: estava na 5ª) ----
