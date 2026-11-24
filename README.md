@@ -19,6 +19,11 @@ fhdod/
 │   │   │   ├── ui/                 # Campos e seletores
 │   │   │   └── layout/             # Estrutura compartilhada
 │   │   ├── pages/                  # HTML e lógica de cada tela
+│   │   ├── hooks/                  # Comportamentos reutilizáveis
+│   │   ├── context/                # Estado compartilhado, sem React
+│   │   ├── store/                  # Estado da interface
+│   │   ├── routes/                 # Mapa conceitual das páginas
+│   │   ├── App.js                  # Composição do frontend nativo
 │   │   ├── services/api.js         # Comunicação HTTP
 │   │   ├── utils/                 # Funções auxiliares
 │   │   └── main.js                # Entrada da pesquisa
@@ -34,6 +39,7 @@ fhdod/
 │   │   ├── services/              # Regras, segurança e migrações
 │   │   ├── utils/                 # Constantes e auxiliares
 │   │   ├── validations/           # Validação de ambiente e respostas
+│   │   ├── uploads/                # Reserva para uploads controlados
 │   │   ├── app.js                 # Configuração do Express
 │   │   └── server.js              # Inicialização e encerramento
 │   ├── .env.example

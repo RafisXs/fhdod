@@ -12,6 +12,11 @@ O projeto está dividido em dois npm workspaces: `frontend/` e `backend/`. Insta
 | `frontend/src/components/common/` | Componentes visuais compartilhados. |
 | `frontend/src/components/ui/` | Campos e seletores reutilizados nas telas. |
 | `frontend/src/components/layout/` | Renderização, foco e rodapé compartilhados. |
+| `frontend/src/hooks/` | Comportamentos reutilizáveis, em JavaScript nativo. |
+| `frontend/src/context/` | Contextos compartilhados entre telas, sem React. |
+| `frontend/src/store/` | Estado de interface compartilhado. |
+| `frontend/src/routes/` | Mapa conceitual das páginas do frontend. |
+| `frontend/src/App.js` | Ponto de composição documentado; não é componente React. |
 | `frontend/src/pages/` | HTML e comportamento de cada tela. |
 | `frontend/src/services/api.js` | Requisições HTTP, cookies e tratamento de erros. |
 | `frontend/src/utils/` | Formatação e escape de texto. |
@@ -30,6 +35,7 @@ Os scripts são carregados em ordem pelos HTMLs. O Express serve apenas os recur
 | `backend/src/services/` | Regras de avaliação, auditoria, senhas e migrações. |
 | `backend/src/models/` | Leitura e paginação das avaliações, respeitando o perfil. |
 | `backend/src/validations/` | Validação do ambiente, datas, notas e alternativas. |
+| `backend/src/uploads/` | Reserva controlada para futuras integrações de upload; não é público. |
 | `backend/src/utils/` | Constantes, privacidade e funções de apoio. |
 | `backend/src/app.js` | Configuração do Express, segurança e rotas. |
 | `backend/src/server.js` | Validação do ambiente, conexão, inicialização e encerramento. |
