@@ -1,22 +1,35 @@
 // Conexão com o MySQL (pool). As credenciais vêm do arquivo .env.
+const fs = require('node:fs');
+const path = require('node:path');
 require('./env');
 const mysql = require('mysql2/promise');
 
+const sslAtivo = ['true', '1', 'required', 'require'].includes(
+  String(process.env.DB_SSL || process.env.DB_SSL_MODE || '').trim().toLowerCase(),
+);
+
+function obterSsl() {
+  if (!sslAtivo) return undefined;
+  const ssl = { rejectUnauthorized: true };
+  const caArquivo = process.env.DB_SSL_CA_FILE;
+  if (caArquivo) {
+    const caminho = path.isAbsolute(caArquivo) ? caArquivo : path.resolve(__dirname, '../../', caArquivo);
+    if (!fs.existsSync(caminho)) throw new Error(`Certificado CA do MySQL não encontrado: ${caminho}`);
+    ssl.ca = fs.readFileSync(caminho);
+  }
+  return ssl;
+}
+
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT || 3306),
-  database: process.env.DB_NAME,
+  host: process.env.DB_HOST,
   user: process.env.DB_USER,
+  port: process.env.DB_PORT,
   password: process.env.DB_PASSWORD,
-  waitForConnections: true,
+  database: process.env.DB_NAME,
+  ssl: { rejectUnauthorized: true },
+  waitForConnections: false,
   connectionLimit: 10,
-  connectTimeout: 10000,
-  queueLimit: 100,
-  enableKeepAlive: true,
-  charset: 'utf8mb4',
-  timezone: 'Z',
-  dateStrings: true,
-  decimalNumbers: true,
+  queueLimit: 0
 });
 
 pool.pool.on('connection', (c) => c.query("SET time_zone = '+00:00'")); // horários sempre em UTC
