@@ -11,7 +11,7 @@ const { testarConexao, pool } = require('./config/db');
 const { segredoValido } = require('./middleware/auth');
 const { migrar } = require('./services/migracao');
 
-const PORT = Number(process.env.PORT || 3000);
+const PORT = Number(process.env.PORT || 3002);
 const HOST = process.env.HOST || '0.0.0.0';
 (async () => {
   if (!segredoValido(process.env.JWT_SECRET)) {

@@ -4,12 +4,7 @@ const path = require('node:path');
 require('./env');
 const mysql = require('mysql2/promise');
 
-const sslAtivo = ['true', '1', 'required', 'require'].includes(
-  String(process.env.DB_SSL || process.env.DB_SSL_MODE || '').trim().toLowerCase(),
-);
-
 function obterSsl() {
-  if (!sslAtivo) return undefined;
   const ssl = { rejectUnauthorized: true };
   const caArquivo = process.env.DB_SSL_CA_FILE;
   if (caArquivo) {
@@ -26,7 +21,7 @@ const pool = mysql.createPool({
   port: process.env.DB_PORT,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  ssl: { rejectUnauthorized: true },
+  ssl: obterSsl(),
   waitForConnections: false,
   connectionLimit: 10,
   queueLimit: 0
