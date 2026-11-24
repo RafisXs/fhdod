@@ -1,0 +1,23 @@
+[Unit]
+Description=FHDOD - Avaliação do Atendimento
+After=network.target mysql.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=fhdod
+Group=fhdod
+WorkingDirectory=/opt/fhdod
+EnvironmentFile=/etc/fhdod/app.env
+ExecStart=/usr/bin/node /opt/fhdod/backend/src/server.js
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=40
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

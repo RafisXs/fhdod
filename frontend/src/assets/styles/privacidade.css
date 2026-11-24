@@ -1,0 +1,19 @@
+.privacy-card{padding:24px;background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--sh);line-height:1.65}
+.privacy-compact{padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card);font-size:.92rem;line-height:1.5;margin-bottom:14px}
+.privacy-compact h2{font-size:1rem;margin:0 0 6px}
+.privacy-compact p{margin:0 0 10px;color:var(--mut)}
+.privacy-compact .privacy-check{padding:0;border:0;background:transparent;font-size:.9rem;font-weight:400;gap:10px}
+.privacy-compact .privacy-check input{width:20px;height:20px}
+.privacy-compact a{color:var(--pri);text-underline-offset:3px}
+.privacy-card h1{font-size:1.65rem;line-height:1.25}
+.privacy-card h2{font-size:1.2rem;margin-top:24px}
+.privacy-card ul{padding-left:22px}
+.privacy-card li{margin-bottom:10px}
+.privacy-card a,.privacy-summary a{color:var(--pri);text-underline-offset:3px;font-weight:600}
+.privacy-check{display:flex;align-items:flex-start;gap:12px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--bg);font-weight:600;cursor:pointer}
+.privacy-check input{width:24px;height:24px;flex-shrink:0;margin:2px 0 0;accent-color:var(--pri)}
+.privacy-check:focus-within{outline:3px solid var(--pri);outline-offset:3px}
+.privacy-card .cta{width:100%;margin-top:12px}
+.privacy-summary{padding:16px;margin:20px 0;border:1px solid var(--line);border-radius:12px;background:var(--card);font-size:.95rem}
+.privacy-summary p{margin:8px 0 0}
+@media(max-width:480px){.privacy-card{padding:18px}.privacy-card h1{font-size:1.4rem}}

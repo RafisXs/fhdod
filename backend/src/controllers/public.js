@@ -1,0 +1,134 @@
+// Rotas públicas: pesquisa de satisfação, login e TV Wall.
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
+const { pool } = require('../config/db');
+const { emitirLogin, sairLogin, exigirLogin } = require('../middleware/auth');
+const { auditar, falhaSenha, alterarSenha } = require('../services/seguranca');
+const { VERSAO_PRIVACIDADE } = require('../utils/privacidade');
+const { registrarAvaliacao, iniciarRascunho, gravarResposta, concluirRascunho, ErroValidacao } = require('../services/avaliacoes');
+const { asJson, erro, ABAIXO_MEDIA, NPS_MAX_DETRATOR } = require('../utils/util');
+
+
+// Teste de conexão com o banco
+exports.saude = async (req, res) => {
+  await pool.query('SELECT 1');
+  res.json({ ok: true, mensagem: 'Banco de dados conectado com sucesso.' });
+};
+// Setores e perguntas ativas (a pesquisa monta as telas com isso)
+exports.perguntas = async (req, res) => {
+  const [setores] = await pool.query('SELECT id, nome FROM setores WHERE ativo = 1 ORDER BY ordem');
+  const [perg] = await pool.query('SELECT p.id, p.setor_id, p.ordem, p.texto, p.tipo, p.opcoes FROM perguntas p JOIN setores s ON s.id = p.setor_id WHERE p.ativa = 1 AND s.ativo = 1 ORDER BY p.setor_id, p.ordem');
+  res.json({
+    setores,
+    limites: { abaixoMedia: ABAIXO_MEDIA, npsMaxDetrator: NPS_MAX_DETRATOR },
+    privacidade: { versao: VERSAO_PRIVACIDADE, url: '/privacidade.html' },
+    perguntas: perg.map((q) => ({ ...q, opcoes: asJson(q.opcoes) })),
+  });
+};
+
+// Envio completo de uma vez (alternativa à gravação em tempo real; usada pela API e pelos testes)
+exports.registrar = async (req, res) => {
+  try {
+    await registrarAvaliacao(req.body);
+    res.status(201).json({ ok: true });
+  } catch (e) {
+    if (e instanceof ErroValidacao) return erro(res, 400, e.message);
+    throw e;
+  }
+};
+
+// ---- Gravação em tempo real: cada resposta vai para o banco assim que o paciente responde ----
+// Os limites são por endereço; o hospital pode ter muitos pacientes saindo do mesmo Wi-Fi.
+exports.iniciar = async (req, res) => {
+  const token = await iniciarRascunho(req.body && req.body.setor, req.body);
+  res.status(201).json({ token });
+};
+exports.responder = async (req, res) => {
+  await gravarResposta(req.params.token, req.body);
+  res.json({ ok: true });
+};
+exports.concluir = async (req, res) => {
+  await concluirRascunho(req.params.token, req.body);
+  res.status(201).json({ ok: true });
+};
+
+// ---- Login ----
+const HASH_FALSO = bcrypt.hashSync('senha-falsa-para-igualar-o-tempo', 12);
+exports.login = async (req, res) => {
+  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+  const senha = String((req.body && req.body.senha) || '');
+  const c = await pool.getConnection();
+  try {
+    await c.beginTransaction();
+    const [[u]] = await c.query('SELECT *, bloqueado_ate > UTC_TIMESTAMP() AS bloqueado FROM usuarios WHERE email=? FOR UPDATE', [email]);
+    const ok = await bcrypt.compare(Buffer.byteLength(senha, 'utf8') <= 72 ? senha : '', u ? u.senha_hash : HASH_FALSO);
+    if (!u || !u.ativo || !ok || u.bloqueado) {
+      if (u && u.ativo && !u.bloqueado) await falhaSenha(c, u);
+      await auditar(c, { user: u }, 'login.recusado', 'usuario', u ? u.id : null);
+      await c.commit();
+      return erro(res, 401, 'Não foi possível entrar. Confira as credenciais; após 5 falhas, aguarde 15 minutos.');
+    }
+    await c.query('UPDATE usuarios SET tentativas_falhas=0, bloqueado_ate=NULL WHERE id=?', [u.id]);
+    await auditar(c, { user: u }, 'login.sucesso', 'usuario', u.id);
+    await c.commit();
+    emitirLogin(res, u);
+    res.json({ nome: u.nome, email: u.email, papel: u.papel, setor_id: u.setor_id, trocar_senha: !!u.trocar_senha });
+  } catch (e) { await c.rollback(); throw e; } finally { c.release(); }
+};
+
+exports.logout = (req, res) => {
+  sairLogin(res); res.json({ ok: true });
+};
+
+exports.me = (req, res) => {
+  const { nome, email, papel, setor_id, trocar_senha } = req.user;
+  res.json({ nome, email, papel, setor_id, trocar_senha: !!trocar_senha });
+};
+
+exports.senha = async (req, res) => {
+  const result = await alterarSenha(req, req.body && req.body.senha_atual, req.body && req.body.nova_senha);
+  if (result.erro) return erro(res, result.status, result.erro);
+  emitirLogin(res, result.usuario);
+  res.json({ ok: true });
+};
+
+// ---- TV Wall: só números agregados, nunca dados de pacientes ----
+exports.tv = async (req, res) => {
+  const token = process.env.TV_TOKEN;
+  if (token) {
+    const a = Buffer.from(String(req.query.token || ''));
+    const b = Buffer.from(token);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return erro(res, 401, 'Link da TV inválido.');
+  }
+  const D30 = "a.status = 'concluida' AND a.criado_em >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
+  const [[t]] = await pool.query(
+    `SELECT COUNT(*) AS total, AVG(a.nota_media) AS nota, SUM(a.nps >= 9) AS pro, SUM(a.nps <= 6) AS det,
+            SUM(a.abaixo_media) AS abaixo, SUM(a.criado_em >= DATE_SUB(NOW(), INTERVAL 24 HOUR)) AS hoje
+       FROM avaliacoes a WHERE ${D30}`);
+  const [[s]] = await pool.query(
+    `SELECT COUNT(*) AS n, SUM(r.valor_num >= 4) AS ok FROM respostas r JOIN avaliacoes a ON a.id = r.avaliacao_id
+      WHERE r.tipo = 'escala' AND ${D30}`);
+  const [setores] = await pool.query(
+    `SELECT st.id, st.nome, COUNT(a.id) AS respostas, AVG(a.nota_media) AS nota,
+            SUM(a.nps >= 9) AS pro, SUM(a.nps <= 6) AS de
+       FROM setores st LEFT JOIN avaliacoes a ON a.setor_id = st.id AND ${D30}
+      WHERE st.ativo = 1
+      GROUP BY st.id, st.nome, st.ordem ORDER BY st.ordem`);
+  const [serie] = await pool.query(
+    `SELECT DATE_FORMAT(a.criado_em, '%Y-%m-%d') AS dia, COUNT(*) AS n FROM avaliacoes a
+      WHERE a.status = 'concluida' AND a.criado_em >= DATE_SUB(CURDATE(), INTERVAL 13 DAY) GROUP BY dia ORDER BY dia`);
+  const n = Number(t.total) || 0;
+  const nps = (pro, det, q) => (q ? Math.round((100 * (Number(pro) - Number(det))) / q) : null);
+  res.json({
+    atualizadoEm: new Date().toISOString(),
+    total: n,
+    hoje: Number(t.hoje) || 0,
+    nota: t.nota == null ? null : Number(t.nota),
+    nps: nps(t.pro, t.det, n),
+    satisfeitos: s.n ? Math.round((100 * Number(s.ok)) / Number(s.n)) : null,
+    abaixoMedia: Number(t.abaixo) || 0,
+    setores: setores.map((x) => ({ id: x.id, nome: x.nome, respostas: Number(x.respostas), nota: x.nota == null ? null : Number(x.nota), nps: nps(x.pro, x.det, Number(x.respostas)) })),
+    serie: serie.map((x) => ({ dia: x.dia, n: Number(x.n) })),
+  });
+};
+

@@ -7,3 +7,8 @@
 node_modules/
 *.log
 .DS_Store
+verification/
+coverage/
+backups/
+*.sql.gz
+*.sql.gz.sha256
